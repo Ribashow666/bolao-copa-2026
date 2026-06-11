@@ -285,7 +285,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
       <button class="tab-btn active" onclick="showTab('ranking')" id="tab-ranking">🏆 Rank</button>
       <button class="tab-btn" onclick="showTab('jogos')" id="tab-jogos">⚽ Jogos</button>
       <button class="tab-btn" onclick="showTab('palpitar')" id="tab-palpitar">✏️ Palpitar</button>
-      <button class="tab-btn" onclick="showTab('admin')" id="tab-admin">⚙️ Admin</button>
+      ${currentUser?.isAdmin ? `<button class="tab-btn" onclick="showTab('admin')" id="tab-admin">⚙️ Admin</button>` : ''}
     </div>
   </div>
   <div class="main" id="content"></div>
@@ -564,20 +564,42 @@ window.doLogout = () => {
 function bootApp() {
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app').style.display='block';
-  document.getElementById('user-av').textContent  = currentUser.username[0].toUpperCase();
+  document.getElementById('user-av').textContent     = currentUser.username[0].toUpperCase();
   document.getElementById('user-nm-hdr').textContent = currentUser.username;
-  // Refresh isAdmin from DB in background (fixes stale localStorage session)
+  // Refresh isAdmin from DB (fixes stale localStorage)
   get(ref(db, `bolao/users/${currentUser.key}`)).then(snap=>{
     if (snap.exists()) {
-      currentUser.isAdmin = snap.val().isAdmin || false;
-      localStorage.setItem('bolao_session', JSON.stringify(currentUser));
+      const freshAdmin = snap.val().isAdmin || false;
+      if (freshAdmin !== currentUser.isAdmin) {
+        currentUser.isAdmin = freshAdmin;
+        localStorage.setItem('bolao_session', JSON.stringify(currentUser));
+        updateAdminTab();
+        render();
+      }
     }
   });
+  updateAdminTab();
   render();
   syncFromApi(true);
-  // live countdown tick every 30s
   clearInterval(countdownTimer);
   countdownTimer = setInterval(()=>{ if(currentTab==='palpitar') render(); }, 30000);
+}
+
+function updateAdminTab() {
+  const tabsInner = document.querySelector('.tabs-inner');
+  const existing  = document.getElementById('tab-admin');
+  if (currentUser?.isAdmin) {
+    if (!existing) {
+      const btn = document.createElement('button');
+      btn.className = 'tab-btn'; btn.id = 'tab-admin';
+      btn.onclick = () => showTab('admin');
+      btn.textContent = '\u2699\uFE0F Admin';
+      tabsInner.appendChild(btn);
+    }
+  } else {
+    if (existing) existing.remove();
+    if (currentTab === 'admin') { currentTab = 'ranking'; }
+  }
 }
 
 // ── FIREBASE LISTENER ──────────────────────────────────────────
@@ -885,6 +907,26 @@ function renderPalpitar() {
 // ── ADMIN ──────────────────────────────────────────────────────
 function renderAdmin() {
   const isAdmin = currentUser?.isAdmin;
+
+  if (!isAdmin) {
+    return `
+      <div style="text-align:center;padding:48px 20px">
+        <div style="font-size:64px;margin-bottom:16px">🚨</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--red);letter-spacing:2px;margin-bottom:8px">
+          ÁREA RESTRITA
+        </div>
+        <div style="font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.7">
+          Ei, <strong style="color:var(--text)">${currentUser.username}</strong>! Tentando espiar o admin? 👀<br>
+          Isso aqui é só pra quem manda, seu viadão pretão.<br>
+          <span style="font-size:12px">Volta pro seu palpite antes que alguém te veja.</span>
+        </div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--gold);letter-spacing:1px;margin-bottom:20px">
+          🔒 Acesso negado. Tchonga.
+        </div>
+        <button class="btn-salvar" onclick="showTab('palpitar')">✏️ Ir Palpitar</button>
+      </div>`;
+  }
+
   let h=`<div class="sec-title">⚙️ Admin</div>`;
 
   // Sync status
