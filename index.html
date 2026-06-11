@@ -16,7 +16,7 @@
 }
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 
-/* ── LOADING ── */
+/* LOADING */
 #loading-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:14px}
 .load-badge{width:72px;height:72px;background:var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px}
 .load-title{font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--gold);letter-spacing:2px}
@@ -24,7 +24,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .spinner{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ── AUTH SCREEN ── */
+/* AUTH */
 #auth-screen{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:9998;padding:16px;overflow-y:auto}
 .auth-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px 24px;width:100%;max-width:360px}
 .auth-logo{text-align:center;margin-bottom:20px}
@@ -43,13 +43,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .btn-auth{width:100%;padding:12px;background:var(--gold);border:none;border-radius:8px;font-weight:700;font-size:14px;color:#000;cursor:pointer;font-family:'Inter',sans-serif;text-transform:uppercase;letter-spacing:1px;transition:all .2s;margin-top:4px}
 .btn-auth:hover{background:var(--gold2)}
 .btn-auth:disabled{opacity:.4;cursor:not-allowed}
-
-/* jogadores display names hint */
 .players-hint{background:var(--surface2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:11px;color:var(--text2);line-height:1.6}
 .players-hint strong{color:var(--text)}
-.player-tag{display:inline-block;background:var(--border);border-radius:4px;padding:1px 7px;margin:2px 2px;font-size:11px;color:var(--text);font-weight:600}
+.player-tag{display:inline-block;background:var(--border);border-radius:4px;padding:1px 7px;margin:2px;font-size:11px;color:var(--text);font-weight:600}
 
-/* ── HEADER ── */
+/* HEADER */
 .header{background:var(--green-dark);border-bottom:2px solid var(--gold);position:sticky;top:0;z-index:100}
 .header-inner{max-width:900px;margin:0 auto;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .logo-wrap{display:flex;align-items:center;gap:9px}
@@ -61,7 +59,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .user-av{width:26px;height:26px;background:var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#000;font-family:'Bebas Neue',sans-serif}
 .user-nm{font-size:12px;font-weight:600}
 
-/* ── SYNC BAR ── */
+/* SYNC BAR */
 .sync-bar{text-align:center;padding:4px 10px;font-size:11px;font-weight:500;display:none}
 .sync-bar.show{display:block}
 .sync-bar.syncing{background:#0a2a0a;color:var(--text2)}
@@ -69,7 +67,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .sync-bar.offline{background:#2a0000;color:#f87171}
 .sync-bar.ok{background:#0a1a0a;color:var(--text2)}
 
-/* ── TABS ── */
+/* TABS */
 .tabs{background:var(--surface);border-bottom:1px solid var(--border)}
 .tabs-inner{max-width:900px;margin:0 auto;display:flex}
 .tab-btn{flex:1;padding:12px 2px;font-family:'Inter',sans-serif;font-size:11px;font-weight:600;color:var(--text2);background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;text-transform:uppercase;letter-spacing:.6px;transition:all .2s}
@@ -78,7 +76,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .main{max-width:900px;margin:0 auto;padding:18px 13px 60px}
 .sec-title{font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--gold);letter-spacing:2px;margin-bottom:14px}
 
-/* ── RANKING ── */
+/* RANKING */
 .podium-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:12px}
 .podium-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:13px 7px;text-align:center}
 .podium-card.gold{border-color:var(--gold);background:#0f3a15}
@@ -103,7 +101,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .pts-row{display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:5px;padding:5px 9px;font-size:11px;gap:6px}
 .pts-row span:first-child{color:var(--text2)}
 
-/* ── JOGOS ── */
+/* JOGOS */
 .filter-bar{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap}
 .filter-btn{padding:4px 12px;border-radius:20px;font-size:10px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text2);text-transform:uppercase;letter-spacing:.5px;transition:all .2s}
 .filter-btn.active{background:var(--green-light);border-color:var(--gold);color:var(--text)}
@@ -129,10 +127,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .badge-enc{background:#0a2a0a;color:#4ade80;border:1px solid #166534}
 .badge-pend{background:#1c1800;color:#fbbf24;border:1px solid #854d0e}
 .badge-live{background:#2a0000;color:#f87171;border:1px solid var(--red)}
+.badge-fechado{background:#1a0a1a;color:#c084fc;border:1px solid #7e22ce}
 .live-dot{display:inline-block;width:6px;height:6px;background:#f87171;border-radius:50%;margin-right:4px;animation:blink 1s ease-in-out infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 
-/* ── PALPITAR ── */
+/* PALPITAR */
 .palpitar-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;overflow:hidden;margin-bottom:11px}
 .pal-hdr{background:var(--surface2);padding:8px 13px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
 .pal-match-row{display:flex;align-items:center;justify-content:center;gap:9px;padding:11px 13px}
@@ -145,11 +144,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .sc-in{font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:7px;width:44px;height:42px;text-align:center;-moz-appearance:textfield}
 .sc-in::-webkit-outer-spin-button,.sc-in::-webkit-inner-spin-button{-webkit-appearance:none}
 .sc-in:focus{outline:none;border-color:var(--gold)}
+.sc-in:disabled{opacity:.4;cursor:not-allowed}
 .sc-x{font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text2)}
 .btn-salvar{padding:8px 18px;background:var(--gold);border:none;border-radius:7px;font-weight:700;font-size:12px;color:#000;cursor:pointer;font-family:'Inter',sans-serif;text-transform:uppercase;transition:all .2s}
 .btn-salvar:hover{background:var(--gold2)}
+.btn-salvar:disabled{opacity:.4;cursor:not-allowed}
+.locked-msg{display:flex;align-items:center;gap:6px;background:#1a0a1a;border:1px solid #7e22ce;border-radius:7px;padding:8px 12px;font-size:12px;color:#c084fc;margin-top:4px}
+.countdown{font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--gold);margin-left:auto}
 
-/* ── ADMIN ── */
+/* ADMIN */
 .admin-box{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px;margin-bottom:12px}
 .admin-box-title{font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--gold);letter-spacing:1px;margin-bottom:11px}
 .res-row{background:var(--surface2);border-radius:7px;padding:9px 11px;margin-bottom:7px}
@@ -176,12 +179,12 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .user-list-meta{font-size:10px;color:var(--text2)}
 .admin-badge{font-size:10px;padding:2px 7px;background:#0a3a0a;color:#4ade80;border:1px solid #166534;border-radius:4px;font-weight:700}
 
-/* ── UTILS ── */
+/* UTILS */
 .pts-exact{color:#4ade80}.pts-vg{color:#86efac}.pts-diff{color:#bbf7d0}
 .pts-draw{color:#fde68a}.pts-lg{color:#fed7aa}.pts-win{color:#fca5a5}
 .pts-almost{color:#f9a8d4}.pts-zero{color:var(--text2)}
-.empty{text-align:center;padding:32px;color:var(--text2);font-size:13px;line-height:1.6}
-.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--gold);color:#000;padding:10px 20px;border-radius:7px;font-weight:700;font-size:12px;z-index:9999;opacity:0;transition:all .3s;white-space:nowrap;max-width:90vw;text-align:center}
+.empty{text-align:center;padding:32px;color:var(--text2);font-size:13px;line-height:1.7}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--gold);color:#000;padding:10px 20px;border-radius:7px;font-weight:700;font-size:12px;z-index:9999;opacity:0;transition:all .3s;white-space:nowrap;max-width:92vw;text-align:center}
 .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
 .toast.err{background:#CC0001;color:#fff}
 
@@ -196,15 +199,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 </head>
 <body>
 
-<!-- LOADING -->
 <div id="loading-screen">
   <div class="load-badge">⚽</div>
   <div class="load-title">Bolão Copa 2026</div>
-  <div class="load-sub" id="load-msg">Conectando...</div>
+  <div class="load-sub">Conectando...</div>
   <div class="spinner"></div>
 </div>
 
-<!-- AUTH -->
 <div id="auth-screen">
   <div class="auth-card">
     <div class="auth-logo">
@@ -216,8 +217,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
       <button class="auth-tab active" id="tab-login-btn" onclick="switchAuth('login')">Entrar</button>
       <button class="auth-tab" id="tab-reg-btn" onclick="switchAuth('register')">Criar Conta</button>
     </div>
-
-    <!-- LOGIN FORM -->
     <div id="login-form">
       <div class="form-group">
         <label class="form-label">Nome de usuário</label>
@@ -232,8 +231,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
       <div class="form-error" id="login-global-err" style="margin-bottom:10px;font-size:12px"></div>
       <button class="btn-auth" id="btn-login" onclick="doLogin()">Entrar</button>
     </div>
-
-    <!-- REGISTER FORM -->
     <div id="register-form" style="display:none">
       <div class="players-hint">
         <strong>Nomes do bolão:</strong><br>
@@ -265,7 +262,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   </div>
 </div>
 
-<!-- APP -->
 <div id="app" style="display:none">
   <div class="sync-bar" id="sync-bar"></div>
   <div class="header">
@@ -298,8 +294,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, onValue, set, update, push, get, remove }
+import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, onValue, set, update, push, get, runTransaction }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const FB_CONFIG = {
@@ -311,120 +307,158 @@ const FB_CONFIG = {
   messagingSenderId:"331660975900",
   appId:"1:331660975900:web:08417e790f5251982e24d9"
 };
-const API_KEY = "4e4ac3b282130db442facab71b110737";
-const WC_LEAGUE = 1, WC_SEASON = 2026;
+const API_KEY    = "4e4ac3b282130db442facab71b110737";
+const WC_LEAGUE  = 1;
+const WC_SEASON  = 2026;
 
 const fbApp = initializeApp(FB_CONFIG);
-const db = getDatabase(fbApp);
+const db    = getDatabase(fbApp);
 
 // ── CONSTANTS ──────────────────────────────────────────────────
 const KNOWN_PLAYERS = ['Milho','Wly','Igor','Jucas','Wendel'];
 const EMOJIS = {Milho:'🌽',Wly:'🦅',Igor:'🐺',Jucas:'🦁',Wendel:'⚡'};
-const DEFAULT_EMOJI = '👤';
 const FLAGS = {
-  'Brazil':'🇧🇷','Argentina':'🇦🇷','France':'🇫🇷','Germany':'🇩🇪','England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-  'Spain':'🇪🇸','Portugal':'🇵🇹','Uruguay':'🇺🇾','Mexico':'🇲🇽','United States':'🇺🇸',
-  'Japan':'🇯🇵','Morocco':'🇲🇦','Netherlands':'🇳🇱','Belgium':'🇧🇪','Croatia':'🇭🇷',
-  'Senegal':'🇸🇳','Australia':'🇦🇺','South Korea':'🇰🇷','Colombia':'🇨🇴','Ecuador':'🇪🇨',
-  'Canada':'🇨🇦','Switzerland':'🇨🇭','Poland':'🇵🇱','Ghana':'🇬🇭','Tunisia':'🇹🇳',
-  'Cameroon':'🇨🇲','Costa Rica':'🇨🇷','Saudi Arabia':'🇸🇦','Iran':'🇮🇷','Serbia':'🇷🇸',
-  'Denmark':'🇩🇰','Norway':'🇳🇴','Sweden':'🇸🇪','Italy':'🇮🇹','Chile':'🇨🇱',
-  'Paraguay':'🇵🇾','Bolivia':'🇧🇴','Venezuela':'🇻🇪','Peru':'🇵🇪','Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿',
-  'Wales':'🏴󠁧󠁢󠁷󠁬󠁳󠁿','Czech Republic':'🇨🇿','South Africa':'🇿🇦','Turkey':'🇹🇷',
-  'Ukraine':'🇺🇦','Austria':'🇦🇹','Greece':'🇬🇷','Honduras':'🇭🇳','Panama':'🇵🇦',
-  'Jamaica':'🇯🇲','Algeria':'🇩🇿','Egypt':'🇪🇬','Nigeria':'🇳🇬','Ivory Coast':'🇨🇮',
-  'New Zealand':'🇳🇿','Uzbekistan':'🇺🇿','Qatar':'🇶🇦','Mali':'🇲🇱',
+  'Brazil':'🇧🇷','Argentina':'🇦🇷','France':'🇫🇷','Germany':'🇩🇪',
+  'England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Spain':'🇪🇸','Portugal':'🇵🇹','Uruguay':'🇺🇾',
+  'Mexico':'🇲🇽','United States':'🇺🇸','Japan':'🇯🇵','Morocco':'🇲🇦',
+  'Netherlands':'🇳🇱','Belgium':'🇧🇪','Croatia':'🇭🇷','Senegal':'🇸🇳',
+  'Australia':'🇦🇺','South Korea':'🇰🇷','Colombia':'🇨🇴','Ecuador':'🇪🇨',
+  'Canada':'🇨🇦','Switzerland':'🇨🇭','Poland':'🇵🇱','Ghana':'🇬🇭',
+  'Tunisia':'🇹🇳','Cameroon':'🇨🇲','Costa Rica':'🇨🇷','Saudi Arabia':'🇸🇦',
+  'Iran':'🇮🇷','Serbia':'🇷🇸','Denmark':'🇩🇰','Norway':'🇳🇴',
+  'Sweden':'🇸🇪','Italy':'🇮🇹','Chile':'🇨🇱','Paraguay':'🇵🇾',
+  'Bolivia':'🇧🇴','Venezuela':'🇻🇪','Peru':'🇵🇪','Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  'Wales':'🏴󠁧󠁢󠁷󠁬󠁳󠁿','Czech Republic':'🇨🇿','South Africa':'🇿🇦',
+  'Turkey':'🇹🇷','Ukraine':'🇺🇦','Austria':'🇦🇹','Greece':'🇬🇷',
+  'Honduras':'🇭🇳','Panama':'🇵🇦','Jamaica':'🇯🇲','Algeria':'🇩🇿',
+  'Egypt':'🇪🇬','Nigeria':'🇳🇬','Ivory Coast':'🇨🇮','New Zealand':'🇳🇿',
+  'Uzbekistan':'🇺🇿','Qatar':'🇶🇦','Mali':'🇲🇱','Indonesia':'🇮🇩',
 };
-const PTS = {EXATO:25,VG:18,DIFF:15,DRAW:15,LG:12,WIN:10,ALMOST:4};
+const PTS = {EXATO:25, VG:18, DIFF:15, DRAW:15, LG:12, WIN:10, ALMOST:4};
 
 // ── STATE ──────────────────────────────────────────────────────
-let currentUser = null; // {username, isAdmin}
-let currentTab = 'ranking';
-let filterFase = 'Todos';
-let dbData = {jogos:{}, users:{}, lastSync:null};
-let syncTimer = null;
+let currentUser = null; // {username, key, isAdmin}
+let currentTab  = 'ranking';
+let filterFase  = 'Todos';
+let dbData      = {jogos:{}, users:{}, lastSync:null};
+let syncTimer   = null;
+let countdownTimer = null;
 
-// ── HASH (simples, client-side) ────────────────────────────────
+// ── HELPERS ────────────────────────────────────────────────────
 async function hashPassword(pass) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass + 'bolao2026salt'));
+  const buf = await crypto.subtle.digest('SHA-256',
+    new TextEncoder().encode(pass + 'bolao2026salt'));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-// ── UTILS ──────────────────────────────────────────────────────
-const flag = t => FLAGS[t] || '🏳';
-const emo  = n => EMOJIS[n] || DEFAULT_EMOJI;
-const fmtDate = d => { if(!d) return ''; const [y,m,day]=d.split('-'); return `${day}/${m}`; };
+const flag    = t => FLAGS[t] || '🏳';
+const emo     = n => EMOJIS[n] || '👤';
+const fmtDate = d => { if(!d) return ''; const [,m,day]=d.split('-'); return `${day}/${m}`; };
 const fmtTime = t => t ? t.substring(0,5) : '';
-const slug = s => s.toLowerCase().trim().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
 
+// Normalise name → Firebase key (only a-z0-9_)
+const toKey = s => s.toLowerCase().trim()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+
+// ── PONTUAÇÃO ──────────────────────────────────────────────────
 function calcPts(real, pal) {
-  if (real?.casa === null || real?.casa === undefined) return null;
+  if (real?.casa == null) return null;
   const rc=+real.casa, rf=+real.fora, pc=+pal.casa, pf=+pal.fora;
   if ([rc,rf,pc,pf].some(isNaN)) return null;
-  if (rc===pc && rf===pf) return {pts:PTS.EXATO,tipo:'exact'};
+  if (rc===pc && rf===pf)        return {pts:PTS.EXATO, tipo:'exact'};
   const pD=pc===pf, rD=rc===rf;
-  if (pD && !rD) return {pts:PTS.ALMOST,tipo:'almost'};
-  if (rD && pD)  return {pts:PTS.DRAW,tipo:'draw'};
+  if (pD && !rD)                 return {pts:PTS.ALMOST, tipo:'almost'};
+  if (rD && pD)                  return {pts:PTS.DRAW,   tipo:'draw'};
   const rWC=rc>rf, pWC=pc>pf;
-  if (rWC!==pWC) return {pts:0,tipo:'miss'};
+  if (rWC!==pWC)                 return {pts:0, tipo:'miss'};
   const wg=rWC?rc:rf, lg=rWC?rf:rc, pwg=pWC?pc:pf, plg=pWC?pf:pc;
-  if (pwg===wg)            return {pts:PTS.VG,tipo:'vg'};
-  if ((rc-rf)===(pc-pf))   return {pts:PTS.DIFF,tipo:'diff'};
-  if (plg===lg)            return {pts:PTS.LG,tipo:'lg'};
-  return {pts:PTS.WIN,tipo:'win'};
+  if (pwg===wg)                  return {pts:PTS.VG,   tipo:'vg'};
+  if ((rc-rf)===(pc-pf))         return {pts:PTS.DIFF, tipo:'diff'};
+  if (plg===lg)                  return {pts:PTS.LG,   tipo:'lg'};
+  return {pts:PTS.WIN, tipo:'win'};
 }
-const ptsClass = t=>({exact:'pts-exact',vg:'pts-vg',diff:'pts-diff',draw:'pts-draw',lg:'pts-lg',win:'pts-win',almost:'pts-almost',miss:'pts-zero'}[t]||'pts-zero');
-const ptsLabel = t=>({exact:'Exato!',vg:'Venc+G✓',diff:'Venc+Dif',draw:'Emp✓',lg:'Venc+Gl',win:'Venc✓',almost:'~Emp',miss:'—'}[t]||'—');
+const ptsClass = t=>({exact:'pts-exact',vg:'pts-vg',diff:'pts-diff',draw:'pts-draw',
+  lg:'pts-lg',win:'pts-win',almost:'pts-almost',miss:'pts-zero'}[t]||'pts-zero');
+const ptsLabel = t=>({exact:'Exato!',vg:'Venc+G✓',diff:'Venc+Dif',draw:'Emp✓',
+  lg:'Venc+Gl',win:'Venc✓',almost:'~Emp',miss:'—'}[t]||'—');
 
+// ── DEADLINE: jogo trava na hora marcada (BRT) ─────────────────
+function jogoAberto(jogo) {
+  if (!jogo.data || !jogo.hora) return false;
+  const s = jogo.status || 'NS';
+  if (['FT','AET','PEN','1H','HT','2H','ET','BT','P','INT'].includes(s)) return false;
+  // parse BRT datetime → UTC
+  const [h, mi] = jogo.hora.split(':').map(Number);
+  const [y, mo, d] = jogo.data.split('-').map(Number);
+  // BRT = UTC-3, so kickoff UTC = BRT+3
+  const kickoffUTC = Date.UTC(y, mo-1, d, h+3, mi, 0);
+  return Date.now() < kickoffUTC;
+}
+
+function tempoParaJogo(jogo) {
+  if (!jogo.data || !jogo.hora) return null;
+  const [h, mi] = jogo.hora.split(':').map(Number);
+  const [y, mo, d] = jogo.data.split('-').map(Number);
+  const kickoffUTC = Date.UTC(y, mo-1, d, h+3, mi, 0);
+  const diff = kickoffUTC - Date.now();
+  if (diff <= 0) return null;
+  const totalMin = Math.floor(diff/60000);
+  const hrs = Math.floor(totalMin/60), min = totalMin%60;
+  if (hrs > 48) return null; // não mostra contagem regressiva pra jogos muito longe
+  if (hrs > 0) return `${hrs}h ${min}min`;
+  return `${min}min`;
+}
+
+// ── RANKING ────────────────────────────────────────────────────
 function computeRanking() {
-  // all users who have palpites
   const pts={}, exact={};
-  const allPlayers = new Set([...KNOWN_PLAYERS, ...Object.keys(dbData.users||{})]);
-  allPlayers.forEach(j=>{pts[j]=0;exact[j]=0;});
+  // seed known players so they always appear
+  KNOWN_PLAYERS.forEach(j=>{pts[j]=0; exact[j]=0;});
+  // also seed registered users
+  Object.values(dbData.users||{}).forEach(u=>{
+    if(!pts[u.displayName]) { pts[u.displayName]=0; exact[u.displayName]=0; }
+  });
   Object.values(dbData.jogos||{}).forEach(jogo=>{
-    if (jogo.resultado?.casa===null||jogo.resultado?.casa===undefined) return;
+    if (jogo.resultado?.casa == null) return;
     Object.entries(jogo.palpites||{}).forEach(([jogador,p])=>{
       const r=calcPts(jogo.resultado,p);
-      if(r){pts[jogador]=(pts[jogador]||0)+r.pts;if(r.tipo==='exact')exact[jogador]=(exact[jogador]||0)+1;}
+      if(r){
+        pts[jogador]=(pts[jogador]||0)+r.pts;
+        if(r.tipo==='exact') exact[jogador]=(exact[jogador]||0)+1;
+      }
     });
   });
-  // only show players with at least 1 palpite OR known players
-  const active = Object.entries(pts).filter(([n])=>{
-    const hasPal = Object.values(dbData.jogos||{}).some(j=>j.palpites&&j.palpites[n]!==undefined);
-    return KNOWN_PLAYERS.includes(n) || hasPal;
-  });
-  return {sorted:active.sort((a,b)=>b[1]-a[1]),exact};
+  // only show players who have at least 1 palpite OR are known players
+  const allPalPlayers = new Set();
+  Object.values(dbData.jogos||{}).forEach(j=>Object.keys(j.palpites||{}).forEach(n=>allPalPlayers.add(n)));
+  const visible = Object.entries(pts).filter(([n])=>KNOWN_PLAYERS.includes(n)||allPalPlayers.has(n));
+  return {sorted: visible.sort((a,b)=>b[1]-a[1]), exact};
 }
 
 function getJogos() {
   return Object.entries(dbData.jogos||{})
-    .map(([id,j])=>({...j,_id:id}))
-    .sort((a,b)=>{ const dd=a.data>b.data?1:a.data<b.data?-1:0; return dd||((a.hora||'')>(b.hora||'')?1:-1); });
+    .map(([id,j])=>({...j, _id:id}))
+    .sort((a,b)=>{
+      const dd = a.data>b.data ? 1 : a.data<b.data ? -1 : 0;
+      return dd || ((a.hora||'')>(b.hora||'') ? 1 : -1);
+    });
 }
 
+// ── UI HELPERS ─────────────────────────────────────────────────
 function showToast(msg, isErr=false) {
   const t=document.getElementById('toast');
   t.textContent=msg;
   t.className='toast show'+(isErr?' err':'');
   clearTimeout(t._to);
-  t._to=setTimeout(()=>t.classList.remove('show'),2800);
+  t._to=setTimeout(()=>t.classList.remove('show'), 2800);
 }
 
 function setSyncBar(type, msg) {
   const b=document.getElementById('sync-bar');
-  if(!msg){b.className='sync-bar';b.style.display='none';return;}
-  b.className=`sync-bar show ${type}`;b.textContent=msg;b.style.display='block';
+  if(!msg){b.className='sync-bar'; b.style.display='none'; return;}
+  b.className=`sync-bar show ${type}`; b.textContent=msg; b.style.display='block';
 }
-
-// ── AUTH LOGIC ─────────────────────────────────────────────────
-window.switchAuth = mode => {
-  const isLogin = mode==='login';
-  document.getElementById('login-form').style.display = isLogin?'block':'none';
-  document.getElementById('register-form').style.display = isLogin?'none':'block';
-  document.getElementById('tab-login-btn').classList.toggle('active', isLogin);
-  document.getElementById('tab-reg-btn').classList.toggle('active', !isLogin);
-  clearAuthErrors();
-};
 
 function clearAuthErrors() {
   ['login-user-err','login-pass-err','login-global-err',
@@ -433,37 +467,43 @@ function clearAuthErrors() {
   document.querySelectorAll('.form-input').forEach(el=>el.classList.remove('error'));
 }
 
+// ── AUTH ───────────────────────────────────────────────────────
+window.switchAuth = mode => {
+  const isLogin = mode==='login';
+  document.getElementById('login-form').style.display    = isLogin?'block':'none';
+  document.getElementById('register-form').style.display = isLogin?'none':'block';
+  document.getElementById('tab-login-btn').classList.toggle('active', isLogin);
+  document.getElementById('tab-reg-btn').classList.toggle('active', !isLogin);
+  clearAuthErrors();
+};
+
 window.doLogin = async () => {
   clearAuthErrors();
   const username = document.getElementById('login-user').value.trim();
   const pass     = document.getElementById('login-pass').value;
-  let ok = true;
+  let ok=true;
   if (!username) { document.getElementById('login-user-err').textContent='Campo obrigatório'; document.getElementById('login-user').classList.add('error'); ok=false; }
   if (!pass)     { document.getElementById('login-pass-err').textContent='Campo obrigatório'; document.getElementById('login-pass').classList.add('error'); ok=false; }
   if (!ok) return;
-
-  const btn = document.getElementById('btn-login');
+  const btn=document.getElementById('btn-login');
   btn.disabled=true; btn.textContent='Entrando...';
   try {
-    const userKey = slug(username);
+    const userKey = toKey(username);
     const snap = await get(ref(db, `bolao/users/${userKey}`));
     if (!snap.exists()) {
-      document.getElementById('login-global-err').textContent = 'Usuário não encontrado. Crie uma conta primeiro.';
-      return;
+      document.getElementById('login-global-err').textContent='Usuário não encontrado. Crie uma conta.'; return;
     }
-    const userData = snap.val();
-    const hash = await hashPassword(pass);
-    if (hash !== userData.passwordHash) {
-      document.getElementById('login-pass-err').textContent = 'Senha incorreta';
-      document.getElementById('login-pass').classList.add('error');
-      return;
+    const ud = snap.val();
+    if (await hashPassword(pass) !== ud.passwordHash) {
+      document.getElementById('login-pass-err').textContent='Senha incorreta';
+      document.getElementById('login-pass').classList.add('error'); return;
     }
-    // login ok
-    currentUser = {username: userData.displayName, key: userKey, isAdmin: userData.isAdmin||false};
+    // FIX: always pull fresh isAdmin from DB, never trust localStorage
+    currentUser = {username: ud.displayName, key: userKey, isAdmin: ud.isAdmin||false};
     localStorage.setItem('bolao_session', JSON.stringify(currentUser));
     bootApp();
   } catch(e) {
-    document.getElementById('login-global-err').textContent = 'Erro ao conectar. Tente novamente.';
+    document.getElementById('login-global-err').textContent='Erro de conexão. Tente novamente.';
   } finally {
     btn.disabled=false; btn.textContent='Entrar';
   }
@@ -474,27 +514,24 @@ window.doRegister = async () => {
   const username = document.getElementById('reg-user').value.trim();
   const pass     = document.getElementById('reg-pass').value;
   const pass2    = document.getElementById('reg-pass2').value;
-  let ok = true;
-  if (!username || username.length < 2) { document.getElementById('reg-user-err').textContent='Mínimo 2 caracteres'; document.getElementById('reg-user').classList.add('error'); ok=false; }
-  if (username.length > 20) { document.getElementById('reg-user-err').textContent='Máximo 20 caracteres'; document.getElementById('reg-user').classList.add('error'); ok=false; }
-  if (!pass || pass.length < 6) { document.getElementById('reg-pass-err').textContent='Mínimo 6 caracteres'; document.getElementById('reg-pass').classList.add('error'); ok=false; }
-  if (pass !== pass2) { document.getElementById('reg-pass2-err').textContent='As senhas não coincidem'; document.getElementById('reg-pass2').classList.add('error'); ok=false; }
+  let ok=true;
+  if (!username||username.length<2)  { document.getElementById('reg-user-err').textContent='Mínimo 2 caracteres'; document.getElementById('reg-user').classList.add('error'); ok=false; }
+  if (username.length>20)            { document.getElementById('reg-user-err').textContent='Máximo 20 caracteres'; document.getElementById('reg-user').classList.add('error'); ok=false; }
+  if (!pass||pass.length<6)          { document.getElementById('reg-pass-err').textContent='Mínimo 6 caracteres'; document.getElementById('reg-pass').classList.add('error'); ok=false; }
+  if (pass!==pass2)                  { document.getElementById('reg-pass2-err').textContent='As senhas não coincidem'; document.getElementById('reg-pass2').classList.add('error'); ok=false; }
   if (!ok) return;
-
-  const btn = document.getElementById('btn-reg');
+  const btn=document.getElementById('btn-reg');
   btn.disabled=true; btn.textContent='Criando...';
   try {
-    const userKey = slug(username);
+    const userKey = toKey(username);
     const snap = await get(ref(db, `bolao/users/${userKey}`));
     if (snap.exists()) {
-      document.getElementById('reg-user-err').textContent = 'Este nome já está em uso';
-      document.getElementById('reg-user').classList.add('error');
-      return;
+      document.getElementById('reg-user-err').textContent='Este nome já está em uso';
+      document.getElementById('reg-user').classList.add('error'); return;
     }
     const hash = await hashPassword(pass);
-    // primeiro user vira admin
-    const usersSnap = await get(ref(db, 'bolao/users'));
-    const isFirstUser = !usersSnap.exists() || Object.keys(usersSnap.val()||{}).length === 0;
+    const usersSnap = await get(ref(db,'bolao/users'));
+    const isFirstUser = !usersSnap.exists() || !Object.keys(usersSnap.val()||{}).length;
     await set(ref(db, `bolao/users/${userKey}`), {
       displayName: username,
       passwordHash: hash,
@@ -503,18 +540,19 @@ window.doRegister = async () => {
     });
     currentUser = {username, key: userKey, isAdmin: isFirstUser};
     localStorage.setItem('bolao_session', JSON.stringify(currentUser));
-    showToast(isFirstUser ? `Conta criada! Você é o admin 🔑` : `Conta criada! Bem-vindo, ${username}! ⚽`);
+    showToast(isFirstUser ? 'Conta criada! Você é o admin 🔑' : `Bem-vindo, ${username}! ⚽`);
     bootApp();
   } catch(e) {
-    document.getElementById('reg-global-err').textContent = 'Erro ao criar conta. Tente novamente.';
+    document.getElementById('reg-global-err').textContent='Erro ao criar conta. Tente novamente.';
   } finally {
     btn.disabled=false; btn.textContent='Criar Conta';
   }
 };
 
 window.doLogout = () => {
-  currentUser = null;
+  currentUser=null;
   localStorage.removeItem('bolao_session');
+  clearInterval(countdownTimer);
   document.getElementById('app').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
   clearAuthErrors();
@@ -526,23 +564,33 @@ window.doLogout = () => {
 function bootApp() {
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app').style.display='block';
-  document.getElementById('user-av').textContent = currentUser.username[0].toUpperCase();
+  document.getElementById('user-av').textContent  = currentUser.username[0].toUpperCase();
   document.getElementById('user-nm-hdr').textContent = currentUser.username;
+  // Refresh isAdmin from DB in background (fixes stale localStorage session)
+  get(ref(db, `bolao/users/${currentUser.key}`)).then(snap=>{
+    if (snap.exists()) {
+      currentUser.isAdmin = snap.val().isAdmin || false;
+      localStorage.setItem('bolao_session', JSON.stringify(currentUser));
+    }
+  });
   render();
   syncFromApi(true);
+  // live countdown tick every 30s
+  clearInterval(countdownTimer);
+  countdownTimer = setInterval(()=>{ if(currentTab==='palpitar') render(); }, 30000);
 }
 
 // ── FIREBASE LISTENER ──────────────────────────────────────────
 function startListening() {
   onValue(ref(db,'bolao'), snap=>{
-    dbData = snap.val() || {jogos:{},users:{}};
+    dbData = snap.val() || {jogos:{}, users:{}};
     if (!dbData.jogos) dbData.jogos={};
     if (!dbData.users) dbData.users={};
     if (currentUser) render();
   });
   onValue(ref(db,'.info/connected'), snap=>{
-    if (snap.val()===false) setSyncBar('offline','⚠️ Sem conexão');
-    else setSyncBar('','');
+    if (snap.val()===false) setSyncBar('offline','⚠️ Sem conexão — tentando reconectar...');
+    else if (currentUser) setSyncBar('','');
   });
 }
 
@@ -552,126 +600,205 @@ async function syncFromApi(force=false) {
   if (!force && (now-last)<120000) return;
   setSyncBar('syncing','🔄 Buscando jogos da Copa...');
   try {
-    const [nextData, pastData] = await Promise.all([
-      fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE}&season=${WC_SEASON}&next=20`,{headers:{'x-apisports-key':API_KEY}}).then(r=>r.json()),
-      fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE}&season=${WC_SEASON}&last=30`,{headers:{'x-apisports-key':API_KEY}}).then(r=>r.json())
+    const [nxt, pst] = await Promise.all([
+      fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE}&season=${WC_SEASON}&next=20`,
+        {headers:{'x-apisports-key':API_KEY}}).then(r=>r.json()),
+      fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE}&season=${WC_SEASON}&last=30`,
+        {headers:{'x-apisports-key':API_KEY}}).then(r=>r.json()),
     ]);
     const seen=new Set();
-    const fixtures=[...(nextData.response||[]),...(pastData.response||[])].filter(f=>{
-      if(seen.has(f.fixture.id)){return false;}seen.add(f.fixture.id);return true;
+    const fixtures=[...(nxt.response||[]),...(pst.response||[])].filter(f=>{
+      if(seen.has(f.fixture.id)) return false; seen.add(f.fixture.id); return true;
     });
-    if (!fixtures.length) { setSyncBar('ok','✓ Aguardando início da Copa (11/06)'); setTimeout(()=>setSyncBar('',''),5000); return; }
-    let liveCount=0;
-    const updates={};
-    for (const f of fixtures) {
-      const fid=`api_${f.fixture.id}`;
-      const s=f.fixture.status.short;
-      const isLive=['1H','HT','2H','ET','BT','P','INT'].includes(s);
-      const isDone=['FT','AET','PEN'].includes(s);
-      if(isLive) liveCount++;
-      const round=f.league.round||'';
-      const fase=round.replace('Group Stage - ','Grupo ').replace('Round of 32','Oitavas de 32').replace('Round of 16','Oitavas de Final').replace('Quarter-finals','Quartas de Final').replace('Semi-finals','Semifinais').replace('3rd Place Final','3º Lugar').replace('Final','🏆 Final');
-      const utcD=new Date(f.fixture.date);
-      const brtD=new Date(utcD.getTime()-3*3600000);
-      const dataStr=brtD.toISOString().substring(0,10);
-      const horaStr=brtD.toISOString().substring(11,16);
-      const existing=dbData.jogos?.[fid];
-      updates[fid]={
-        apiId:f.fixture.id,
-        casa:f.teams.home.name,
-        fora:f.teams.away.name,
-        data:dataStr, hora:horaStr, fase, status:s,
-        resultado: (isDone||isLive) ? {casa:f.goals.home,fora:f.goals.away} : {casa:null,fora:null},
-        palpites: existing?.palpites||{}
-      };
+    if (!fixtures.length) {
+      setSyncBar('ok','✓ Aguardando início da Copa');
+      setTimeout(()=>setSyncBar('',''), 5000); return;
     }
-    await update(ref(db,'bolao/jogos'), updates);
+    let liveCount=0;
+    // FIX: use runTransaction per jogo to avoid overwriting palpites written concurrently
+    const writes = fixtures.map(f => {
+      const fid = `api_${f.fixture.id}`;
+      const s   = f.fixture.status.short;
+      const isLive = ['1H','HT','2H','ET','BT','P','INT'].includes(s);
+      const isDone = ['FT','AET','PEN'].includes(s);
+      if (isLive) liveCount++;
+      const round = f.league.round||'';
+      const fase  = round
+        .replace('Group Stage - ','Grupo ')
+        .replace('Round of 32','Oitavas de 32')
+        .replace('Round of 16','Oitavas de Final')
+        .replace('Quarter-finals','Quartas de Final')
+        .replace('Semi-finals','Semifinais')
+        .replace('3rd Place Final','3º Lugar')
+        .replace(/^Final$/,'🏆 Final');
+      const utcD  = new Date(f.fixture.date);
+      const brtD  = new Date(utcD.getTime() - 3*3600000);
+      const data  = brtD.toISOString().substring(0,10);
+      const hora  = brtD.toISOString().substring(11,16);
+      // Atomic merge: only overwrite meta fields, never touch palpites
+      return runTransaction(ref(db, `bolao/jogos/${fid}`), current => {
+        const base = current || {};
+        return {
+          ...base,
+          apiId: f.fixture.id,
+          casa: f.teams.home.name,
+          fora: f.teams.away.name,
+          data, hora, fase, status: s,
+          resultado: (isDone||isLive)
+            ? {casa: f.goals.home, fora: f.goals.away}
+            : (base.resultado || {casa:null, fora:null}),
+          palpites: base.palpites || {},
+        };
+      });
+    });
+    await Promise.all(writes);
     await set(ref(db,'bolao/lastSync'), now);
     clearInterval(syncTimer);
     if (liveCount>0) {
-      setSyncBar('live',`🔴 ${liveCount} jogo(s) ao vivo — sync a cada 2 min`);
-      syncTimer=setInterval(()=>syncFromApi(true),120000);
+      setSyncBar('live',`🔴 ${liveCount} jogo(s) ao vivo — atualizando a cada 2 min`);
+      syncTimer=setInterval(()=>syncFromApi(true), 120000);
     } else {
       setSyncBar('ok',`✓ ${fixtures.length} jogos carregados`);
-      setTimeout(()=>setSyncBar('',''),4000);
-      syncTimer=setInterval(()=>syncFromApi(false),300000);
+      setTimeout(()=>setSyncBar('',''), 4000);
+      syncTimer=setInterval(()=>syncFromApi(false), 300000);
     }
   } catch(e) {
-    console.error(e);
+    console.error('Sync error:', e);
     setSyncBar('offline','⚠️ Erro ao buscar jogos da API');
-    setTimeout(()=>setSyncBar('',''),5000);
+    setTimeout(()=>setSyncBar('',''), 6000);
   }
 }
 
 // ── TABS ───────────────────────────────────────────────────────
-window.showTab = tab=>{
+window.showTab = tab => {
   currentTab=tab;
-  ['ranking','jogos','palpitar','admin'].forEach(t=>document.getElementById(`tab-${t}`).classList.toggle('active',t===tab));
+  ['ranking','jogos','palpitar','admin'].forEach(t=>
+    document.getElementById(`tab-${t}`).classList.toggle('active', t===tab));
   render();
 };
-window.setFilter = fase=>{filterFase=fase;render();};
+window.setFilter = fase => { filterFase=fase; render(); };
 
 // ── RENDER ─────────────────────────────────────────────────────
 function render() {
   const el=document.getElementById('content');
-  if(!el)return;
-  if(currentTab==='ranking')  el.innerHTML=renderRanking();
-  if(currentTab==='jogos')    el.innerHTML=renderJogos();
-  if(currentTab==='palpitar') el.innerHTML=renderPalpitar();
-  if(currentTab==='admin')    el.innerHTML=renderAdmin();
+  if (!el) return;
+  if (currentTab==='ranking')  el.innerHTML=renderRanking();
+  if (currentTab==='jogos')    el.innerHTML=renderJogos();
+  if (currentTab==='palpitar') el.innerHTML=renderPalpitar();
+  if (currentTab==='admin')    el.innerHTML=renderAdmin();
 }
 
+// ── RANKING ────────────────────────────────────────────────────
 function renderRanking() {
   const {sorted,exact}=computeRanking();
-  const M=['🥇','🥈','🥉'],C=['gold','silver','bronze'];
+  const M=['🥇','🥈','🥉'], C=['gold','silver','bronze'];
   let h=`<div class="sec-title">🏆 Classificação</div><div class="podium-grid">`;
   sorted.slice(0,3).forEach(([n,p],i)=>{
-    h+=`<div class="podium-card ${C[i]}"><span class="p-medal">${M[i]}</span><div style="font-size:16px">${emo(n)}</div><div class="p-name">${n}</div><div class="p-pts">${p}</div><div class="p-lbl">pts</div></div>`;
+    h+=`<div class="podium-card ${C[i]}">
+      <span class="p-medal">${M[i]}</span>
+      <div style="font-size:16px">${emo(n)}</div>
+      <div class="p-name">${n}</div>
+      <div class="p-pts">${p}</div>
+      <div class="p-lbl">pts</div>
+    </div>`;
   });
   h+=`</div><div class="rank-list">`;
   sorted.slice(3).forEach(([n,p],i)=>{
-    h+=`<div class="rank-item"><span class="rank-pos">${i+4}º</span><span style="font-size:16px">${emo(n)}</span><span class="rank-name">${n}</span><div style="text-align:right"><div class="rank-pts">${p}</div><div style="font-size:10px;color:var(--text2)">pontos</div></div></div>`;
+    h+=`<div class="rank-item">
+      <span class="rank-pos">${i+4}º</span>
+      <span style="font-size:16px">${emo(n)}</span>
+      <span class="rank-name">${n}</span>
+      <div style="text-align:right">
+        <div class="rank-pts">${p}</div>
+        <div style="font-size:10px;color:var(--text2)">pontos</div>
+      </div>
+    </div>`;
   });
-  h+=`</div><div class="vidente-box"><div class="vidente-title">⭐ Prêmio Vidente 🔮 <span style="font-size:10px;font-weight:400;color:var(--text2)">(mais placares exatos)</span></div>`;
+  h+=`</div><div class="vidente-box">
+    <div class="vidente-title">⭐ Prêmio Vidente 🔮 <span style="font-size:10px;font-weight:400;color:var(--text2)">(mais placares exatos)</span></div>`;
   const vid=Object.entries(exact).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  if(!vid.length) h+=`<div style="color:var(--text2);font-size:12px">Nenhum placar exato ainda.</div>`;
+  if (!vid.length) h+=`<div style="color:var(--text2);font-size:12px">Nenhum placar exato ainda.</div>`;
   vid.forEach(([n,c],i)=>{
-    h+=`<div class="vidente-item"><span style="font-weight:600;font-size:13px">${['🥇','🥈','🥉'][i]||''} ${emo(n)} ${n}</span><div style="display:flex;align-items:baseline;gap:3px"><span class="vidente-count">${c}</span><span style="font-size:10px;color:var(--text2)">exatos</span></div></div>`;
+    h+=`<div class="vidente-item">
+      <span style="font-weight:600;font-size:13px">${['🥇','🥈','🥉'][i]||''} ${emo(n)} ${n}</span>
+      <div style="display:flex;align-items:baseline;gap:3px">
+        <span class="vidente-count">${c}</span>
+        <span style="font-size:10px;color:var(--text2)">exatos</span>
+      </div>
+    </div>`;
   });
-  h+=`</div><div class="pts-legend"><div class="pts-legend-title">📋 Sistema de Pontuação</div><div class="pts-grid">`;
-  [['Placar exato','25pts','pts-exact'],['Vencedor + gols do vencedor','18pts','pts-vg'],['Vencedor + diferença de gols','15pts','pts-diff'],['Empate correto','15pts','pts-draw'],['Vencedor + gols do perdedor','12pts','pts-lg'],['Acertou o vencedor','10pts','pts-win'],['Previu empate (mas não foi)','4pts','pts-almost'],['Errou tudo','0pts','pts-zero']]
-    .forEach(([l,p,c])=>{ h+=`<div class="pts-row"><span>${l}</span><span class="${c}" style="font-weight:700;white-space:nowrap">${p}</span></div>`; });
+  h+=`</div><div class="pts-legend">
+    <div class="pts-legend-title">📋 Sistema de Pontuação</div>
+    <div class="pts-grid">`;
+  [
+    ['Placar exato','25pts','pts-exact'],
+    ['Vencedor + gols do vencedor','18pts','pts-vg'],
+    ['Vencedor + diferença de gols','15pts','pts-diff'],
+    ['Empate correto','15pts','pts-draw'],
+    ['Vencedor + gols do perdedor','12pts','pts-lg'],
+    ['Acertou o vencedor','10pts','pts-win'],
+    ['Previu empate (mas não foi)','4pts','pts-almost'],
+    ['Errou tudo','0pts','pts-zero'],
+  ].forEach(([l,p,c])=>{
+    h+=`<div class="pts-row"><span>${l}</span><span class="${c}" style="font-weight:700;white-space:nowrap">${p}</span></div>`;
+  });
   h+=`</div></div>`;
   return h;
 }
 
+// ── JOGOS ──────────────────────────────────────────────────────
 function renderJogos() {
   const jogos=getJogos();
   const fases=['Todos',...new Set(jogos.map(j=>j.fase))];
   let h=`<div class="sec-title">⚽ Jogos da Copa</div><div class="filter-bar">`;
-  fases.forEach(f=>{ h+=`<button class="filter-btn ${filterFase===f?'active':''}" onclick="setFilter('${f}')">${f}</button>`; });
+  fases.forEach(f=>{
+    h+=`<button class="filter-btn ${filterFase===f?'active':''}" onclick="setFilter('${f}')">${f}</button>`;
+  });
   h+=`</div>`;
-  const list=filterFase==='Todos'?jogos:jogos.filter(j=>j.fase===filterFase);
-  if(!list.length){h+=`<div class="empty">Nenhum jogo disponível.<br>Aguardando sincronização com a API da Copa.</div>`;return h;}
+  const list = filterFase==='Todos' ? jogos : jogos.filter(j=>j.fase===filterFase);
+  if (!list.length) { h+=`<div class="empty">Nenhum jogo disponível.<br>Sincronize com a API no Admin.</div>`; return h; }
   list.forEach(jogo=>{
     const s=jogo.status||'NS';
     const isLive=['1H','HT','2H','ET','BT','P','INT'].includes(s);
     const isDone=['FT','AET','PEN'].includes(s);
-    const temRes=isDone||(jogo.resultado?.casa!==null&&jogo.resultado?.casa!==undefined);
-    const badge=isLive?`<span class="badge badge-live"><span class="live-dot"></span>AO VIVO</span>`:isDone?`<span class="badge badge-enc">✓ Encerrado</span>`:`<span class="badge badge-pend">Pendente</span>`;
-    const c=temRes?jogo.resultado.casa:'-', f=temRes?jogo.resultado.fora:'-';
-    h+=`<div class="match-card"><div class="match-hdr"><span class="match-date">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span><div style="display:flex;gap:5px;align-items:center"><span class="match-stage">${jogo.fase}</span>${badge}</div></div>
-      <div class="match-body"><div class="scoreboard">
-        <div class="team-info"><div class="team-flag">${flag(jogo.casa)}</div><div class="team-name">${jogo.casa}</div></div>
-        <div class="score-box"><div class="score-num">${c}</div><div class="score-div">x</div><div class="score-num">${f}</div></div>
-        <div class="team-info"><div class="team-flag">${flag(jogo.fora)}</div><div class="team-name">${jogo.fora}</div></div>
-      </div></div>`;
+    const temRes = isDone || (jogo.resultado?.casa != null);
+    const aberto = jogoAberto(jogo);
+    const badge  = isLive ? `<span class="badge badge-live"><span class="live-dot"></span>AO VIVO</span>`
+                 : isDone ? `<span class="badge badge-enc">✓ Encerrado</span>`
+                 : aberto ? `<span class="badge badge-pend">Aberto</span>`
+                 :          `<span class="badge badge-fechado">🔒 Fechado</span>`;
+    const c = temRes ? jogo.resultado.casa : '-';
+    const f = temRes ? jogo.resultado.fora : '-';
+    h+=`<div class="match-card">
+      <div class="match-hdr">
+        <span class="match-date">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span>
+        <div style="display:flex;gap:5px;align-items:center">
+          <span class="match-stage">${jogo.fase}</span>${badge}
+        </div>
+      </div>
+      <div class="match-body">
+        <div class="scoreboard">
+          <div class="team-info"><div class="team-flag">${flag(jogo.casa)}</div><div class="team-name">${jogo.casa}</div></div>
+          <div class="score-box">
+            <div class="score-num">${c}</div>
+            <div class="score-div">x</div>
+            <div class="score-num">${f}</div>
+          </div>
+          <div class="team-info"><div class="team-flag">${flag(jogo.fora)}</div><div class="team-name">${jogo.fora}</div></div>
+        </div>
+      </div>`;
     const pals=Object.entries(jogo.palpites||{});
-    if(pals.length){
+    if (pals.length) {
       h+=`<div class="match-pals"><div class="pals-title">📝 Palpites</div><div class="pals-grid">`;
       pals.forEach(([jogador,p])=>{
-        const r=temRes?calcPts(jogo.resultado,p):null;
-        h+=`<div class="pal-item"><span class="pal-player">${emo(jogador)} ${jogador}</span><div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px"><span class="pal-score">${p.casa}x${p.fora}</span>${r?`<span style="font-size:10px" class="${ptsClass(r.tipo)}">${ptsLabel(r.tipo)} ${r.pts}pts</span>`:''}</div></div>`;
+        const r = temRes ? calcPts(jogo.resultado,p) : null;
+        h+=`<div class="pal-item">
+          <span class="pal-player">${emo(jogador)} ${jogador}</span>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+            <span class="pal-score">${p.casa}x${p.fora}</span>
+            ${r ? `<span style="font-size:10px" class="${ptsClass(r.tipo)}">${ptsLabel(r.tipo)} ${r.pts}pts</span>` : ''}
+          </div>
+        </div>`;
       });
       h+=`</div></div>`;
     }
@@ -680,57 +807,113 @@ function renderJogos() {
   return h;
 }
 
+// ── PALPITAR ───────────────────────────────────────────────────
 function renderPalpitar() {
-  const abertos=getJogos().filter(j=>{ const s=j.status||'NS'; return !['FT','AET','PEN'].includes(s); });
-  let h=`<div class="sec-title">✏️ Meus Palpites</div>`;
-  if(!abertos.length){h+=`<div class="empty">✅ Todos os jogos já têm resultado.<br>Novos jogos aparecem aqui automaticamente.</div>`;return h;}
-  abertos.forEach(jogo=>{
-    const meu=(jogo.palpites||{})[currentUser.username];
-    h+=`<div class="palpitar-card">
-      <div class="pal-hdr"><span style="font-weight:600;font-size:11px;color:var(--gold)">${jogo.fase}</span><span style="font-size:10px;color:var(--text2)">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span></div>
-      <div class="pal-match-row">
-        <div class="pal-team"><div class="pal-flag">${flag(jogo.casa)}</div><div class="pal-name">${jogo.casa}</div></div>
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text2)">VS</span>
-        <div class="pal-team"><div class="pal-flag">${flag(jogo.fora)}</div><div class="pal-name">${jogo.fora}</div></div>
-      </div>
-      <div class="my-pal-section">
-        <div class="my-pal-label">${emo(currentUser.username)} ${currentUser.username} — seu palpite</div>
-        <div class="my-pal-row">
-          <input class="sc-in" type="number" min="0" max="20" placeholder="0" id="pc_${jogo._id}" value="${meu?meu.casa:''}">
-          <span class="sc-x">x</span>
-          <input class="sc-in" type="number" min="0" max="20" placeholder="0" id="pf_${jogo._id}" value="${meu?meu.fora:''}">
-          <button class="btn-salvar" onclick="salvarPalpite('${jogo._id}')">Salvar</button>
-        </div>
-        ${meu?`<div style="font-size:10px;color:var(--text2);margin-top:6px">✅ Palpite atual: ${meu.casa}x${meu.fora}</div>`:''}
-      </div>
-    </div>`;
+  // FIX: use jogoAberto() for correct deadline check
+  const jogos = getJogos();
+  const abertos  = jogos.filter(j=>jogoAberto(j));
+  const fechados  = jogos.filter(j=>{
+    const s=j.status||'NS';
+    return !['FT','AET','PEN'].includes(s) && !jogoAberto(j);
   });
+
+  let h=`<div class="sec-title">✏️ Meus Palpites</div>`;
+
+  if (!abertos.length && !fechados.length) {
+    h+=`<div class="empty">✅ Todos os jogos já encerraram.<br>Novos jogos aparecem aqui automaticamente.</div>`;
+    return h;
+  }
+
+  // Jogos ainda abertos para palpite
+  if (abertos.length) {
+    abertos.forEach(jogo=>{
+      const meu = (jogo.palpites||{})[currentUser.username];
+      const tempo = tempoParaJogo(jogo);
+      h+=`<div class="palpitar-card">
+        <div class="pal-hdr">
+          <span style="font-weight:600;font-size:11px;color:var(--gold)">${jogo.fase}</span>
+          <span style="font-size:10px;color:var(--text2)">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span>
+        </div>
+        <div class="pal-match-row">
+          <div class="pal-team"><div class="pal-flag">${flag(jogo.casa)}</div><div class="pal-name">${jogo.casa}</div></div>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text2)">VS</span>
+          <div class="pal-team"><div class="pal-flag">${flag(jogo.fora)}</div><div class="pal-name">${jogo.fora}</div></div>
+        </div>
+        <div class="my-pal-section">
+          <div class="my-pal-label">${emo(currentUser.username)} ${currentUser.username} — seu palpite</div>
+          <div class="my-pal-row">
+            <input class="sc-in" type="number" min="0" max="20" placeholder="0" id="pc_${jogo._id}" value="${meu!=null?meu.casa:''}">
+            <span class="sc-x">x</span>
+            <input class="sc-in" type="number" min="0" max="20" placeholder="0" id="pf_${jogo._id}" value="${meu!=null?meu.fora:''}">
+            <button class="btn-salvar" onclick="salvarPalpite('${jogo._id}')">Salvar</button>
+            ${tempo ? `<span class="countdown">⏳ ${tempo}</span>` : ''}
+          </div>
+          ${meu!=null ? `<div style="font-size:10px;color:var(--text2);margin-top:6px">✅ Palpite atual: <strong>${meu.casa}x${meu.fora}</strong></div>` : ''}
+        </div>
+      </div>`;
+    });
+  }
+
+  // Jogos com palpite fechado (ainda não encerrados mas passaram do horário)
+  if (fechados.length) {
+    h+=`<div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:#c084fc;letter-spacing:1px;margin:16px 0 8px">🔒 Palpites Fechados</div>`;
+    fechados.forEach(jogo=>{
+      const meu=(jogo.palpites||{})[currentUser.username];
+      h+=`<div class="palpitar-card" style="opacity:.75">
+        <div class="pal-hdr">
+          <span style="font-weight:600;font-size:11px;color:#c084fc">${jogo.fase}</span>
+          <span style="font-size:10px;color:var(--text2)">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span>
+        </div>
+        <div class="pal-match-row">
+          <div class="pal-team"><div class="pal-flag">${flag(jogo.casa)}</div><div class="pal-name">${jogo.casa}</div></div>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text2)">VS</span>
+          <div class="pal-team"><div class="pal-flag">${flag(jogo.fora)}</div><div class="pal-name">${jogo.fora}</div></div>
+        </div>
+        <div class="my-pal-section">
+          ${meu!=null
+            ? `<div style="font-size:12px;color:var(--text2)">✅ Seu palpite: <strong style="color:var(--text)">${meu.casa}x${meu.fora}</strong></div>`
+            : `<div class="locked-msg">🔒 Prazo encerrado — palpite não registrado</div>`
+          }
+        </div>
+      </div>`;
+    });
+  }
+
   return h;
 }
 
+// ── ADMIN ──────────────────────────────────────────────────────
 function renderAdmin() {
   const isAdmin = currentUser?.isAdmin;
   let h=`<div class="sec-title">⚙️ Admin</div>`;
 
-  // Sync
-  const ls=dbData.lastSync?new Date(dbData.lastSync).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'nunca';
-  h+=`<div class="admin-box"><div class="admin-box-title">🔄 Sincronização com API</div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.7;background:var(--surface2);border-radius:7px;padding:10px 12px">
-      <strong style="color:var(--text)">Última sync:</strong> ${ls} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos:</strong> ${Object.keys(dbData.jogos||{}).length}
+  // Sync status
+  const ls = dbData.lastSync
+    ? new Date(dbData.lastSync).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})
+    : 'nunca';
+  h+=`<div class="admin-box">
+    <div class="admin-box-title">🔄 Sincronização com API</div>
+    <div style="font-size:12px;color:var(--text2);background:var(--surface2);border-radius:7px;padding:10px 12px;line-height:1.7">
+      <strong style="color:var(--text)">Última sync:</strong> ${ls} &nbsp;·&nbsp;
+      <strong style="color:var(--text)">Jogos no banco:</strong> ${Object.keys(dbData.jogos||{}).length}
     </div>
     <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-sm" onclick="forcSync()">🔄 Sincronizar agora</button>
-      ${isAdmin?`<button class="btn-danger" onclick="if(confirm('Apagar todos os jogos e palpites?'))zerarTudo()">🗑️ Zerar tudo</button>`:''}
+      ${isAdmin ? `<button class="btn-danger" onclick="if(confirm('Apagar todos os jogos e palpites?'))zerarTudo()">🗑️ Zerar tudo</button>` : ''}
     </div>
   </div>`;
 
-  // Resultado manual
   if (isAdmin) {
-    const semRes=getJogos().filter(j=>!['FT','AET','PEN'].includes(j.status||'NS'));
-    if(semRes.length){
-      h+=`<div class="admin-box"><div class="admin-box-title">📝 Inserir Resultado Manual</div>`;
-      semRes.slice(0,12).forEach(jogo=>{
-        h+=`<div class="res-row"><div class="res-match-name">${flag(jogo.casa)} ${jogo.casa} x ${jogo.fora} ${flag(jogo.fora)} <span style="color:var(--text2);font-weight:400">${fmtDate(jogo.data)} · ${jogo.fase}</span></div>
+    // Inserir resultado manual
+    const semRes = getJogos().filter(j=>!['FT','AET','PEN'].includes(j.status||'NS'));
+    if (semRes.length) {
+      h+=`<div class="admin-box"><div class="admin-box-title">📝 Inserir Resultado Manual</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Use para corrigir ou adiantar resultado antes da API atualizar.</div>`;
+      semRes.slice(0,15).forEach(jogo=>{
+        h+=`<div class="res-row">
+          <div class="res-match-name">${flag(jogo.casa)} ${jogo.casa} x ${jogo.fora} ${flag(jogo.fora)}
+            <span style="color:var(--text2);font-weight:400"> — ${fmtDate(jogo.data)} · ${jogo.fase}</span>
+          </div>
           <div class="res-inputs">
             <span class="res-team">${jogo.casa}</span>
             <input class="res-in" type="number" min="0" max="20" placeholder="0" id="rc_${jogo._id}">
@@ -738,17 +921,22 @@ function renderAdmin() {
             <input class="res-in" type="number" min="0" max="20" placeholder="0" id="rf_${jogo._id}">
             <span class="res-team">${jogo.fora}</span>
             <button class="btn-sm" onclick="salvarRes('${jogo._id}')">Salvar</button>
-          </div></div>`;
+          </div>
+        </div>`;
       });
       h+=`</div>`;
     }
-    const comRes=getJogos().filter(j=>j.resultado?.casa!==null&&j.resultado?.casa!==undefined);
-    if(comRes.length){
+
+    // Resultados registrados
+    const comRes = getJogos().filter(j=>j.resultado?.casa!=null);
+    if (comRes.length) {
       h+=`<div class="admin-box"><div class="admin-box-title">✅ Resultados Registrados</div>`;
       comRes.forEach(jogo=>{
         h+=`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:7px;padding:8px 11px;margin-bottom:5px;flex-wrap:wrap;gap:6px">
-          <div><span style="font-weight:600;font-size:12px">${flag(jogo.casa)} ${jogo.casa} ${jogo.resultado.casa}x${jogo.resultado.fora} ${jogo.fora} ${flag(jogo.fora)}</span>
-          <span style="font-size:10px;color:var(--text2);display:block">${fmtDate(jogo.data)} · ${jogo.fase}</span></div>
+          <div>
+            <span style="font-weight:600;font-size:12px">${flag(jogo.casa)} ${jogo.casa} ${jogo.resultado.casa}x${jogo.resultado.fora} ${jogo.fora} ${flag(jogo.fora)}</span>
+            <span style="font-size:10px;color:var(--text2);display:block">${fmtDate(jogo.data)} · ${jogo.fase}</span>
+          </div>
           <button class="btn-danger" onclick="resetRes('${jogo._id}')">✏️ Editar</button>
         </div>`;
       });
@@ -757,28 +945,38 @@ function renderAdmin() {
   }
 
   // Usuários
-  const users=Object.entries(dbData.users||{});
-  h+=`<div class="admin-box"><div class="admin-box-title">👥 Usuários Cadastrados (${users.length})</div>`;
-  if(!users.length) h+=`<div style="color:var(--text2);font-size:12px">Nenhum usuário ainda.</div>`;
-  users.forEach(([key,u])=>{
-    const isMe=key===currentUser.key;
+  const users = Object.entries(dbData.users||{});
+  h+=`<div class="admin-box"><div class="admin-box-title">👥 Usuários (${users.length})</div>`;
+  if (!users.length) h+=`<div style="color:var(--text2);font-size:12px">Nenhum usuário cadastrado.</div>`;
+  users.sort((a,b)=>a[0]>b[0]?1:-1).forEach(([key,u])=>{
+    const isMe = key===currentUser.key;
     h+=`<div class="user-list-item">
-      <div><span class="user-list-name">${emo(u.displayName)} ${u.displayName} ${isMe?'<span style="font-size:10px;color:var(--text2)">(você)</span>':''}</span>
-      <span class="user-list-meta">Cadastrado ${new Date(u.createdAt).toLocaleDateString('pt-BR')}</span></div>
+      <div>
+        <span class="user-list-name">${emo(u.displayName)} ${u.displayName}
+          ${isMe ? '<span style="font-size:10px;color:var(--text2)"> (você)</span>' : ''}
+        </span>
+        <span class="user-list-meta">Desde ${new Date(u.createdAt).toLocaleDateString('pt-BR')}</span>
+      </div>
       <div style="display:flex;align-items:center;gap:6px">
-        ${u.isAdmin?`<span class="admin-badge">Admin</span>`:''}
-        ${isAdmin&&!isMe&&!u.isAdmin?`<button class="btn-sm" style="font-size:10px;padding:4px 9px" onclick="toggleAdmin('${key}',true)">+Admin</button>`:''}
-        ${isAdmin&&!isMe&&u.isAdmin?`<button class="btn-danger" style="font-size:10px;padding:4px 9px" onclick="toggleAdmin('${key}',false)">-Admin</button>`:''}
+        ${u.isAdmin ? `<span class="admin-badge">Admin</span>` : ''}
+        ${isAdmin && !isMe && !u.isAdmin ? `<button class="btn-sm" style="font-size:10px;padding:4px 9px" onclick="toggleAdmin('${key}',true)">+Admin</button>` : ''}
+        ${isAdmin && !isMe && u.isAdmin  ? `<button class="btn-danger" style="padding:4px 9px;font-size:10px" onclick="toggleAdmin('${key}',false)">−Admin</button>` : ''}
       </div>
     </div>`;
   });
   h+=`</div>`;
 
-  // Minha conta
-  h+=`<div class="admin-box"><div class="admin-box-title">🔑 Minha Conta</div>
+  // Alterar senha
+  h+=`<div class="admin-box"><div class="admin-box-title">🔑 Alterar Minha Senha</div>
     <div class="form-grid" style="gap:8px">
-      <div class="form-group-admin full"><label class="form-label-admin">Nova Senha</label><input class="form-input-admin" type="password" id="new-pass" placeholder="mínimo 6 caracteres"></div>
-      <div class="form-group-admin full"><label class="form-label-admin">Confirmar Nova Senha</label><input class="form-input-admin" type="password" id="new-pass2" placeholder="repita a nova senha"></div>
+      <div class="form-group-admin full">
+        <label class="form-label-admin">Nova Senha</label>
+        <input class="form-input-admin" type="password" id="new-pass" placeholder="mínimo 6 caracteres">
+      </div>
+      <div class="form-group-admin full">
+        <label class="form-label-admin">Confirmar Nova Senha</label>
+        <input class="form-input-admin" type="password" id="new-pass2" placeholder="repita">
+      </div>
     </div>
     <button class="btn-sm" style="margin-top:10px" onclick="changePassword()">🔑 Alterar Senha</button>
   </div>`;
@@ -787,52 +985,60 @@ function renderAdmin() {
 }
 
 // ── ACTIONS ────────────────────────────────────────────────────
-window.forcSync = async()=>{ showToast('Sincronizando...'); await syncFromApi(true); };
+window.forcSync = async () => { showToast('Sincronizando...'); await syncFromApi(true); };
 
-window.salvarPalpite = async id=>{
-  const c=document.getElementById(`pc_${id}`)?.value;
-  const f=document.getElementById(`pf_${id}`)?.value;
-  if(c===''||f===''){showToast('Preencha os dois placares!',true);return;}
-  await update(ref(db,`bolao/jogos/${id}/palpites/${currentUser.username}`),{casa:+c,fora:+f});
+window.salvarPalpite = async id => {
+  // FIX: double-check deadline server-side via jogo data
+  const jogo = Object.values(dbData.jogos||{}).find(j=>`api_${j.apiId}`===id || Object.entries(dbData.jogos||{}).find(([k])=>k===id)?.[0]===id);
+  // find jogo by _id
+  const jogoEntry = Object.entries(dbData.jogos||{}).find(([k])=>k===id);
+  if (jogoEntry && !jogoAberto({...jogoEntry[1], _id:jogoEntry[0]})) {
+    showToast('⏰ Prazo encerrado para este jogo!', true); return;
+  }
+  const c = document.getElementById(`pc_${id}`)?.value;
+  const f = document.getElementById(`pf_${id}`)?.value;
+  if (c===''||f==='') { showToast('Preencha os dois placares!', true); return; }
+  if (+c<0||+f<0||+c>20||+f>20) { showToast('Placar inválido!', true); return; }
+  await update(ref(db, `bolao/jogos/${id}/palpites/${currentUser.username}`), {casa:+c, fora:+f});
   showToast(`Palpite salvo! ${c}x${f} ✅`);
 };
 
-window.salvarRes = async id=>{
-  const c=document.getElementById(`rc_${id}`)?.value;
-  const f=document.getElementById(`rf_${id}`)?.value;
-  if(c===''||f===''){showToast('Preencha o placar!',true);return;}
-  await update(ref(db,`bolao/jogos/${id}/resultado`),{casa:+c,fora:+f});
-  await update(ref(db,`bolao/jogos/${id}`),{status:'FT'});
+window.salvarRes = async id => {
+  const c = document.getElementById(`rc_${id}`)?.value;
+  const f = document.getElementById(`rf_${id}`)?.value;
+  if (c===''||f==='') { showToast('Preencha o placar!', true); return; }
+  await update(ref(db, `bolao/jogos/${id}/resultado`), {casa:+c, fora:+f});
+  await update(ref(db, `bolao/jogos/${id}`), {status:'FT'});
   showToast('Resultado salvo! 🎯');
 };
 
-window.resetRes = async id=>{
-  await update(ref(db,`bolao/jogos/${id}/resultado`),{casa:null,fora:null});
-  await update(ref(db,`bolao/jogos/${id}`),{status:'NS'});
-  showToast('Resultado removido.');
+window.resetRes = async id => {
+  await update(ref(db, `bolao/jogos/${id}/resultado`), {casa:null, fora:null});
+  await update(ref(db, `bolao/jogos/${id}`), {status:'NS'});
+  showToast('Resultado removido para edição.');
 };
 
-window.toggleAdmin = async(key, makeAdmin)=>{
-  await update(ref(db,`bolao/users/${key}`),{isAdmin:makeAdmin});
-  showToast(makeAdmin?'Admin concedido!':'Admin removido.');
+window.toggleAdmin = async (key, makeAdmin) => {
+  await update(ref(db, `bolao/users/${key}`), {isAdmin: makeAdmin});
+  showToast(makeAdmin ? 'Admin concedido! 🔑' : 'Admin removido.');
 };
 
-window.changePassword = async()=>{
-  const p1=document.getElementById('new-pass')?.value;
-  const p2=document.getElementById('new-pass2')?.value;
-  if(!p1||p1.length<6){showToast('Mínimo 6 caracteres!',true);return;}
-  if(p1!==p2){showToast('Senhas não coincidem!',true);return;}
-  const hash=await hashPassword(p1);
-  await update(ref(db,`bolao/users/${currentUser.key}`),{passwordHash:hash});
+window.changePassword = async () => {
+  const p1 = document.getElementById('new-pass')?.value;
+  const p2 = document.getElementById('new-pass2')?.value;
+  if (!p1||p1.length<6) { showToast('Mínimo 6 caracteres!', true); return; }
+  if (p1!==p2)          { showToast('Senhas não coincidem!', true); return; }
+  const hash = await hashPassword(p1);
+  await update(ref(db, `bolao/users/${currentUser.key}`), {passwordHash: hash});
   showToast('Senha alterada! ✅');
   document.getElementById('new-pass').value='';
   document.getElementById('new-pass2').value='';
 };
 
-window.zerarTudo = async()=>{
-  await set(ref(db,'bolao/jogos'),{});
-  await set(ref(db,'bolao/lastSync'),null);
-  showToast('Jogos e palpites apagados.');
+window.zerarTudo = async () => {
+  await set(ref(db,'bolao/jogos'), {});
+  await set(ref(db,'bolao/lastSync'), null);
+  showToast('Dados zerados.');
 };
 
 // ── INIT ───────────────────────────────────────────────────────
@@ -846,9 +1052,7 @@ setTimeout(()=>{
       bootApp();
     } catch { localStorage.removeItem('bolao_session'); }
   }
-  if (!currentUser) {
-    document.getElementById('auth-screen').style.display='flex';
-  }
+  if (!currentUser) document.getElementById('auth-screen').style.display='flex';
 }, 1200);
 </script>
 </body>
