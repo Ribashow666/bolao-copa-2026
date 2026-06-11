@@ -167,6 +167,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .btn-sm:hover{background:var(--gold2)}
 .btn-danger{padding:6px 11px;background:transparent;border:1px solid #991b1b;border-radius:5px;font-size:11px;font-weight:600;color:#f87171;cursor:pointer}
 .btn-danger:hover{background:#2a0000}
+.btn-warn{padding:6px 11px;background:transparent;border:1px solid #854d0e;border-radius:5px;font-size:11px;font-weight:600;color:#fbbf24;cursor:pointer}
+.btn-warn:hover{background:#1c1800}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .form-group-admin{display:flex;flex-direction:column;gap:3px}
 .form-label-admin{font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
@@ -178,6 +180,26 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .user-list-name{font-weight:600;font-size:13px}
 .user-list-meta{font-size:10px;color:var(--text2)}
 .admin-badge{font-size:10px;padding:2px 7px;background:#0a3a0a;color:#4ade80;border:1px solid #166534;border-radius:4px;font-weight:700}
+
+/* GERENCIAR JOGOS */
+.jogo-manage-row{background:var(--surface2);border-radius:8px;padding:10px 12px;margin-bottom:7px;border:1px solid var(--border)}
+.jogo-manage-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.jogo-manage-title{font-weight:600;font-size:13px}
+.jogo-manage-meta{font-size:10px;color:var(--text2)}
+.jogo-manage-actions{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.jogo-palpites-list{border-top:1px solid var(--border);margin-top:8px;padding-top:8px}
+.jogo-palpites-title{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:6px}
+.palpite-manage-row{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border-radius:5px;padding:5px 9px;margin-bottom:4px}
+.palpite-manage-name{font-size:12px;font-weight:600}
+.palpite-manage-score{font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--gold)}
+
+/* MODAL EDITAR JOGO */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9990;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-box{background:var(--surface);border:1px solid var(--gold);border-radius:14px;padding:22px 20px;width:100%;max-width:420px}
+.modal-title{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--gold);letter-spacing:1.5px;margin-bottom:14px}
+.modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+.btn-cancel{padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:'Inter',sans-serif}
+.btn-cancel:hover{border-color:var(--text2)}
 
 /* UTILS */
 .pts-exact{color:#4ade80}.pts-vg{color:#86efac}.pts-diff{color:#bbf7d0}
@@ -211,7 +233,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="auth-logo">
       <div class="auth-logo-badge">⚽</div>
       <div class="auth-title">Bolão Copa 2026</div>
-      <div class="auth-sub">Redpillados da Copa · Pernambuco 🇧🇷</div>
+      <div class="auth-sub">Série B · Pernambuco 🇧🇷</div>
     </div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login-btn" onclick="switchAuth('login')">Entrar</button>
@@ -293,11 +315,45 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   <div class="main" id="content"></div>
 </div>
 
+<!-- MODAL EDITAR JOGO -->
+<div class="modal-overlay" id="modal-editar" style="display:none">
+  <div class="modal-box">
+    <div class="modal-title">✏️ Editar Jogo</div>
+    <input type="hidden" id="modal-jogo-id">
+    <div class="form-grid">
+      <div class="form-group-admin">
+        <label class="form-label-admin">Mandante</label>
+        <select class="form-select-admin" id="modal-casa"></select>
+      </div>
+      <div class="form-group-admin">
+        <label class="form-label-admin">Visitante</label>
+        <select class="form-select-admin" id="modal-fora"></select>
+      </div>
+      <div class="form-group-admin">
+        <label class="form-label-admin">Data</label>
+        <input type="date" class="form-input-admin" id="modal-data">
+      </div>
+      <div class="form-group-admin">
+        <label class="form-label-admin">Hora (BRT)</label>
+        <input type="time" class="form-input-admin" id="modal-hora">
+      </div>
+      <div class="form-group-admin full">
+        <label class="form-label-admin">Fase / Grupo</label>
+        <input type="text" class="form-input-admin" id="modal-fase" placeholder="ex: Grupo A, Final...">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="fecharModal()">Cancelar</button>
+      <button class="btn-sm" onclick="salvarEdicaoJogo()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, onValue, set, update, push, get, runTransaction }
+import { getDatabase, ref, onValue, set, update, push, get, runTransaction, remove }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const FB_CONFIG = {
@@ -338,8 +394,21 @@ const FLAGS = {
 };
 const PTS = {EXATO:25, VG:18, DIFF:15, DRAW:15, LG:12, WIN:10, ALMOST:4};
 
+// ── MULTIPLICADORES DE FASE ────────────────────────────────────
+function getMulti(fase) {
+  if (!fase) return 1;
+  const f = fase.toLowerCase();
+  if (f.includes('final') && f.includes('🏆')) return 3;       // 🏆 Final
+  if (f.includes('semifinal') || f.includes('semi'))  return 2.5;
+  if (f.includes('3º lugar') || f.includes('3o lugar') || f.includes('disputa')) return 2.5;
+  if (f.includes('quarta') || f.includes('quarter'))  return 2;
+  if (f.includes('oitava') || f.includes('round of 16')) return 1.5;
+  if (f.includes('16') || f.includes('trinta') || f.includes('round of 32')) return 1.25;
+  return 1; // grupos e qualquer outra fase
+}
+
 // ── STATE ──────────────────────────────────────────────────────
-let currentUser = null; // {username, key, isAdmin}
+let currentUser = null;
 let currentTab  = 'ranking';
 let filterFase  = 'Todos';
 let dbData      = {jogos:{}, users:{}, lastSync:null};
@@ -357,9 +426,7 @@ const flag    = t => FLAGS[t] || '🏳';
 const emo     = n => EMOJIS[n] || '👤';
 const fmtDate = d => { if(!d) return ''; const [,m,day]=d.split('-'); return `${day}/${m}`; };
 const fmtTime = t => t ? t.substring(0,5) : '';
-
-// Normalise name → Firebase key (only a-z0-9_)
-const toKey = s => s.toLowerCase().trim()
+const toKey   = s => s.toLowerCase().trim()
   .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
   .replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
 
@@ -385,15 +452,13 @@ const ptsClass = t=>({exact:'pts-exact',vg:'pts-vg',diff:'pts-diff',draw:'pts-dr
 const ptsLabel = t=>({exact:'Exato!',vg:'Venc+G✓',diff:'Venc+Dif',draw:'Emp✓',
   lg:'Venc+Gl',win:'Venc✓',almost:'~Emp',miss:'—'}[t]||'—');
 
-// ── DEADLINE: jogo trava na hora marcada (BRT) ─────────────────
+// ── DEADLINE ───────────────────────────────────────────────────
 function jogoAberto(jogo) {
   if (!jogo.data || !jogo.hora) return false;
   const s = jogo.status || 'NS';
   if (['FT','AET','PEN','1H','HT','2H','ET','BT','P','INT'].includes(s)) return false;
-  // parse BRT datetime → UTC
   const [h, mi] = jogo.hora.split(':').map(Number);
   const [y, mo, d] = jogo.data.split('-').map(Number);
-  // BRT = UTC-3, so kickoff UTC = BRT+3
   const kickoffUTC = Date.UTC(y, mo-1, d, h+3, mi, 0);
   return Date.now() < kickoffUTC;
 }
@@ -407,7 +472,7 @@ function tempoParaJogo(jogo) {
   if (diff <= 0) return null;
   const totalMin = Math.floor(diff/60000);
   const hrs = Math.floor(totalMin/60), min = totalMin%60;
-  if (hrs > 48) return null; // não mostra contagem regressiva pra jogos muito longe
+  if (hrs > 48) return null;
   if (hrs > 0) return `${hrs}h ${min}min`;
   return `${min}min`;
 }
@@ -415,23 +480,21 @@ function tempoParaJogo(jogo) {
 // ── RANKING ────────────────────────────────────────────────────
 function computeRanking() {
   const pts={}, exact={};
-  // seed known players so they always appear
   KNOWN_PLAYERS.forEach(j=>{pts[j]=0; exact[j]=0;});
-  // also seed registered users
   Object.values(dbData.users||{}).forEach(u=>{
     if(!pts[u.displayName]) { pts[u.displayName]=0; exact[u.displayName]=0; }
   });
   Object.values(dbData.jogos||{}).forEach(jogo=>{
     if (jogo.resultado?.casa == null) return;
+    const multi = getMulti(jogo.fase);
     Object.entries(jogo.palpites||{}).forEach(([jogador,p])=>{
       const r=calcPts(jogo.resultado,p);
       if(r){
-        pts[jogador]=(pts[jogador]||0)+r.pts;
+        pts[jogador]=(pts[jogador]||0)+(r.pts*multi);
         if(r.tipo==='exact') exact[jogador]=(exact[jogador]||0)+1;
       }
     });
   });
-  // only show players who have at least 1 palpite OR are known players
   const allPalPlayers = new Set();
   Object.values(dbData.jogos||{}).forEach(j=>Object.keys(j.palpites||{}).forEach(n=>allPalPlayers.add(n)));
   const visible = Object.entries(pts).filter(([n])=>KNOWN_PLAYERS.includes(n)||allPalPlayers.has(n));
@@ -500,7 +563,6 @@ window.doLogin = async () => {
       document.getElementById('login-pass-err').textContent='Senha incorreta';
       document.getElementById('login-pass').classList.add('error'); return;
     }
-    // FIX: always pull fresh isAdmin from DB, never trust localStorage
     currentUser = {username: ud.displayName, key: userKey, isAdmin: ud.isAdmin||false};
     localStorage.setItem('bolao_session', JSON.stringify(currentUser));
     bootApp();
@@ -568,7 +630,12 @@ function bootApp() {
   document.getElementById('app').style.display='block';
   document.getElementById('user-av').textContent     = currentUser.username[0].toUpperCase();
   document.getElementById('user-nm-hdr').textContent = currentUser.username;
-  // Refresh isAdmin from DB (fixes stale localStorage)
+  // Sempre começa no ranking — evita aba inválida de sessão anterior
+  currentTab = 'ranking';
+  // Populate flag selects in modal
+  const flagOpts = Object.entries(FLAGS).map(([n,f])=>`<option value="${n}">${f} ${n}</option>`).join('');
+  document.getElementById('modal-casa').innerHTML = flagOpts;
+  document.getElementById('modal-fora').innerHTML = flagOpts;
   get(ref(db, `bolao/users/${currentUser.key}`)).then(snap=>{
     if (snap.exists()) {
       const freshAdmin = snap.val().isAdmin || false;
@@ -581,6 +648,11 @@ function bootApp() {
     }
   });
   updateAdminTab();
+  // Sincroniza visual das tabs com currentTab
+  ['ranking','jogos','palpitar','admin'].forEach(t=>{
+    const el = document.getElementById(`tab-${t}`);
+    if (el) el.classList.toggle('active', t===currentTab);
+  });
   render();
   syncFromApi(true);
   clearInterval(countdownTimer);
@@ -595,7 +667,7 @@ function updateAdminTab() {
       const btn = document.createElement('button');
       btn.className = 'tab-btn'; btn.id = 'tab-admin';
       btn.onclick = () => showTab('admin');
-      btn.textContent = '\u2699\uFE0F Admin';
+      btn.textContent = '⚙️ Admin';
       tabsInner.appendChild(btn);
     }
   } else {
@@ -639,7 +711,6 @@ async function syncFromApi(force=false) {
       setTimeout(()=>setSyncBar('',''), 5000); return;
     }
     let liveCount=0;
-    // FIX: use runTransaction per jogo to avoid overwriting palpites written concurrently
     const writes = fixtures.map(f => {
       const fid = `api_${f.fixture.id}`;
       const s   = f.fixture.status.short;
@@ -659,7 +730,6 @@ async function syncFromApi(force=false) {
       const brtD  = new Date(utcD.getTime() - 3*3600000);
       const data  = brtD.toISOString().substring(0,10);
       const hora  = brtD.toISOString().substring(11,16);
-      // Atomic merge: only overwrite meta fields, never touch palpites
       return runTransaction(ref(db, `bolao/jogos/${fid}`), current => {
         const base = current || {};
         return {
@@ -696,8 +766,10 @@ async function syncFromApi(force=false) {
 // ── TABS ───────────────────────────────────────────────────────
 window.showTab = tab => {
   currentTab=tab;
-  ['ranking','jogos','palpitar','admin'].forEach(t=>
-    document.getElementById(`tab-${t}`).classList.toggle('active', t===tab));
+  ['ranking','jogos','palpitar','admin'].forEach(t=>{
+    const el = document.getElementById(`tab-${t}`);
+    if (el) el.classList.toggle('active', t===tab);
+  });
   render();
 };
 window.setFilter = fase => { filterFase=fase; render(); };
@@ -766,7 +838,22 @@ function renderRanking() {
   ].forEach(([l,p,c])=>{
     h+=`<div class="pts-row"><span>${l}</span><span class="${c}" style="font-weight:700;white-space:nowrap">${p}</span></div>`;
   });
-  h+=`</div></div>`;
+  h+=`</div>
+    <div style="margin-top:11px;padding-top:10px;border-top:1px solid var(--border)">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--gold);letter-spacing:1px;margin-bottom:7px">📈 Multiplicadores por Fase</div>
+      <div class="pts-grid">`;
+  [
+    ['🌎 Fase de Grupos','×1'],
+    ['🎟️ 16 Avos de Final','×1,25'],
+    ['🔥 Oitavas de Final','×1,5'],
+    ['💥 Quartas de Final','×2'],
+    ['⚔️ Semifinais','×2,5'],
+    ['🥉 Disputa de 3º Lugar','×2,5'],
+    ['🏆 Final','×3'],
+  ].forEach(([l,m])=>{
+    h+=`<div class="pts-row"><span>${l}</span><span style="font-weight:700;color:var(--gold);white-space:nowrap">${m}</span></div>`;
+  });
+  h+=`</div></div></div>`;
   return h;
 }
 
@@ -816,11 +903,13 @@ function renderJogos() {
       h+=`<div class="match-pals"><div class="pals-title">📝 Palpites</div><div class="pals-grid">`;
       pals.forEach(([jogador,p])=>{
         const r = temRes ? calcPts(jogo.resultado,p) : null;
+        const multi = getMulti(jogo.fase);
+        const ptsFinais = r ? r.pts * multi : null;
         h+=`<div class="pal-item">
           <span class="pal-player">${emo(jogador)} ${jogador}</span>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
             <span class="pal-score">${p.casa}x${p.fora}</span>
-            ${r ? `<span style="font-size:10px" class="${ptsClass(r.tipo)}">${ptsLabel(r.tipo)} ${r.pts}pts</span>` : ''}
+            ${r ? `<span style="font-size:10px" class="${ptsClass(r.tipo)}">${ptsLabel(r.tipo)} ${ptsFinais}pts${multi>1?` <span style="opacity:.7">×${multi}</span>`:''}</span>` : ''}
           </div>
         </div>`;
       });
@@ -833,7 +922,6 @@ function renderJogos() {
 
 // ── PALPITAR ───────────────────────────────────────────────────
 function renderPalpitar() {
-  // FIX: use jogoAberto() for correct deadline check
   const jogos = getJogos();
   const abertos  = jogos.filter(j=>jogoAberto(j));
   const fechados  = jogos.filter(j=>{
@@ -848,7 +936,6 @@ function renderPalpitar() {
     return h;
   }
 
-  // Jogos ainda abertos para palpite
   if (abertos.length) {
     abertos.forEach(jogo=>{
       const meu = (jogo.palpites||{})[currentUser.username];
@@ -878,7 +965,6 @@ function renderPalpitar() {
     });
   }
 
-  // Jogos com palpite fechado (ainda não encerrados mas passaram do horário)
   if (fechados.length) {
     h+=`<div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:#c084fc;letter-spacing:1px;margin:16px 0 8px">🔒 Palpites Fechados</div>`;
     fechados.forEach(jogo=>{
@@ -914,17 +1000,13 @@ function renderAdmin() {
     return `
       <div style="text-align:center;padding:48px 20px">
         <div style="font-size:64px;margin-bottom:16px">🚨</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--red);letter-spacing:2px;margin-bottom:8px">
-          ÁREA RESTRITA
-        </div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--red);letter-spacing:2px;margin-bottom:8px">ÁREA RESTRITA</div>
         <div style="font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.7">
           Ei, <strong style="color:var(--text)">${currentUser.username}</strong>! Tentando espiar o admin? 👀<br>
           Isso aqui é só pra quem manda no pedaço.<br>
           <span style="font-size:12px">Volta pro seu palpite antes que alguém te veja.</span>
         </div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--gold);letter-spacing:1px;margin-bottom:20px">
-          🔒 Acesso negado. Tente de novo em: nunca.
-        </div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--gold);letter-spacing:1px;margin-bottom:20px">🔒 Acesso negado. Tente de novo em: nunca.</div>
         <button class="btn-salvar" onclick="showTab('palpitar')">✏️ Ir Palpitar</button>
       </div>`;
   }
@@ -943,49 +1025,96 @@ function renderAdmin() {
     </div>
     <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-sm" onclick="forcSync()">🔄 Sincronizar agora</button>
-      ${isAdmin ? `<button class="btn-danger" onclick="if(confirm('Apagar todos os jogos e palpites?'))zerarTudo()">🗑️ Zerar tudo</button>` : ''}
+      <button class="btn-danger" onclick="if(confirm('Apagar todos os jogos e palpites?'))zerarTudo()">🗑️ Zerar tudo</button>
     </div>
   </div>`;
 
-  if (isAdmin) {
-    // Inserir resultado manual
-    const semRes = getJogos().filter(j=>!['FT','AET','PEN'].includes(j.status||'NS'));
-    if (semRes.length) {
-      h+=`<div class="admin-box"><div class="admin-box-title">📝 Inserir Resultado Manual</div>
-        <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Use para corrigir ou adiantar resultado antes da API atualizar.</div>`;
-      semRes.slice(0,15).forEach(jogo=>{
-        h+=`<div class="res-row">
-          <div class="res-match-name">${flag(jogo.casa)} ${jogo.casa} x ${jogo.fora} ${flag(jogo.fora)}
-            <span style="color:var(--text2);font-weight:400"> — ${fmtDate(jogo.data)} · ${jogo.fase}</span>
-          </div>
-          <div class="res-inputs">
-            <span class="res-team">${jogo.casa}</span>
-            <input class="res-in" type="number" min="0" max="20" placeholder="0" id="rc_${jogo._id}">
-            <span class="res-x">x</span>
-            <input class="res-in" type="number" min="0" max="20" placeholder="0" id="rf_${jogo._id}">
-            <span class="res-team">${jogo.fora}</span>
-            <button class="btn-sm" onclick="salvarRes('${jogo._id}')">Salvar</button>
-          </div>
-        </div>`;
-      });
-      h+=`</div>`;
-    }
+  // ── GERENCIAR JOGOS (NOVO) ──────────────────────────────────
+  const todosJogos = getJogos();
+  h+=`<div class="admin-box">
+    <div class="admin-box-title">🗂️ Gerenciar Jogos</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:11px">Edite dados, apague jogos ou remova palpites individuais.</div>`;
 
-    // Resultados registrados
-    const comRes = getJogos().filter(j=>j.resultado?.casa!=null);
-    if (comRes.length) {
-      h+=`<div class="admin-box"><div class="admin-box-title">✅ Resultados Registrados</div>`;
-      comRes.forEach(jogo=>{
-        h+=`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:7px;padding:8px 11px;margin-bottom:5px;flex-wrap:wrap;gap:6px">
+  if (!todosJogos.length) {
+    h+=`<div style="font-size:12px;color:var(--text2)">Nenhum jogo cadastrado ainda.</div>`;
+  } else {
+    todosJogos.forEach(jogo => {
+      const numPals = Object.keys(jogo.palpites||{}).length;
+      const palsEncoded = encodeURIComponent(JSON.stringify(jogo.palpites||{}));
+      h+=`<div class="jogo-manage-row">
+        <div class="jogo-manage-header">
           <div>
-            <span style="font-weight:600;font-size:12px">${flag(jogo.casa)} ${jogo.casa} ${jogo.resultado.casa}x${jogo.resultado.fora} ${jogo.fora} ${flag(jogo.fora)}</span>
-            <span style="font-size:10px;color:var(--text2);display:block">${fmtDate(jogo.data)} · ${jogo.fase}</span>
+            <div class="jogo-manage-title">${flag(jogo.casa)} ${jogo.casa} x ${jogo.fora} ${flag(jogo.fora)}</div>
+            <div class="jogo-manage-meta">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)} · ${jogo.fase}</div>
           </div>
-          <button class="btn-danger" onclick="resetRes('${jogo._id}')">✏️ Editar</button>
+          <div class="jogo-manage-actions">
+            <button class="btn-warn" onclick="abrirEditarJogo('${jogo._id}')">✏️ Editar</button>
+            <button class="btn-danger" onclick="apagarJogo('${jogo._id}','${jogo.casa} x ${jogo.fora}')">🗑️ Apagar</button>
+          </div>
         </div>`;
-      });
+
+      // Palpites do jogo
+      const pals = Object.entries(jogo.palpites||{});
+      if (pals.length) {
+        h+=`<div class="jogo-palpites-list">
+          <div class="jogo-palpites-title">📝 ${numPals} palpite(s)</div>`;
+        pals.forEach(([jogador, p]) => {
+          const safeJogador = jogador.replace(/'/g, "\\'");
+          h+=`<div class="palpite-manage-row">
+            <span class="palpite-manage-name">${emo(jogador)} ${jogador}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="palpite-manage-score">${p.casa}x${p.fora}</span>
+              <button class="btn-danger" style="padding:3px 8px;font-size:10px" onclick="apagarPalpite('${jogo._id}','${safeJogador}')">✕</button>
+            </div>
+          </div>`;
+        });
+        h+=`</div>`;
+      } else {
+        h+=`<div style="font-size:11px;color:var(--text2);padding-top:6px;border-top:1px solid var(--border);margin-top:6px">Sem palpites ainda.</div>`;
+      }
+
       h+=`</div>`;
-    }
+    });
+  }
+  h+=`</div>`;
+
+  // Inserir resultado manual
+  const semRes = getJogos().filter(j=>!['FT','AET','PEN'].includes(j.status||'NS'));
+  if (semRes.length) {
+    h+=`<div class="admin-box"><div class="admin-box-title">📝 Inserir Resultado Manual</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Use para corrigir ou adiantar resultado antes da API atualizar.</div>`;
+    semRes.slice(0,15).forEach(jogo=>{
+      h+=`<div class="res-row">
+        <div class="res-match-name">${flag(jogo.casa)} ${jogo.casa} x ${jogo.fora} ${flag(jogo.fora)}
+          <span style="color:var(--text2);font-weight:400"> — ${fmtDate(jogo.data)} · ${jogo.fase}</span>
+        </div>
+        <div class="res-inputs">
+          <span class="res-team">${jogo.casa}</span>
+          <input class="res-in" type="number" min="0" max="20" placeholder="0" id="rc_${jogo._id}">
+          <span class="res-x">x</span>
+          <input class="res-in" type="number" min="0" max="20" placeholder="0" id="rf_${jogo._id}">
+          <span class="res-team">${jogo.fora}</span>
+          <button class="btn-sm" onclick="salvarRes('${jogo._id}')">Salvar</button>
+        </div>
+      </div>`;
+    });
+    h+=`</div>`;
+  }
+
+  // Resultados registrados
+  const comRes = getJogos().filter(j=>j.resultado?.casa!=null);
+  if (comRes.length) {
+    h+=`<div class="admin-box"><div class="admin-box-title">✅ Resultados Registrados</div>`;
+    comRes.forEach(jogo=>{
+      h+=`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:7px;padding:8px 11px;margin-bottom:5px;flex-wrap:wrap;gap:6px">
+        <div>
+          <span style="font-weight:600;font-size:12px">${flag(jogo.casa)} ${jogo.casa} ${jogo.resultado.casa}x${jogo.resultado.fora} ${jogo.fora} ${flag(jogo.fora)}</span>
+          <span style="font-size:10px;color:var(--text2);display:block">${fmtDate(jogo.data)} · ${jogo.fase}</span>
+        </div>
+        <button class="btn-danger" onclick="resetRes('${jogo._id}')">✏️ Editar</button>
+      </div>`;
+    });
+    h+=`</div>`;
   }
 
   // Usuários
@@ -1010,7 +1139,6 @@ function renderAdmin() {
   });
   h+=`</div>`;
 
-  // Alterar senha
   // Adicionar jogo manual
   const flagOpts = Object.entries(FLAGS).map(([n,f])=>`<option value="${n}">${f} ${n}</option>`).join('');
   h+=`<div class="admin-box"><div class="admin-box-title">➕ Adicionar Jogo Manual</div>
@@ -1046,9 +1174,6 @@ function renderAdmin() {
 window.forcSync = async () => { showToast('Sincronizando...'); await syncFromApi(true); };
 
 window.salvarPalpite = async id => {
-  // FIX: double-check deadline server-side via jogo data
-  const jogo = Object.values(dbData.jogos||{}).find(j=>`api_${j.apiId}`===id || Object.entries(dbData.jogos||{}).find(([k])=>k===id)?.[0]===id);
-  // find jogo by _id
   const jogoEntry = Object.entries(dbData.jogos||{}).find(([k])=>k===id);
   if (jogoEntry && !jogoAberto({...jogoEntry[1], _id:jogoEntry[0]})) {
     showToast('⏰ Prazo encerrado para este jogo!', true); return;
@@ -1108,7 +1233,6 @@ window.addJogo = async () => {
     palpites: {}
   });
   showToast(`${casa} x ${fora} adicionado! ⚽`);
-  // reset form
   document.getElementById('new_data').value = '';
   document.getElementById('new_fase').value = '';
 };
@@ -1117,6 +1241,60 @@ window.zerarTudo = async () => {
   await set(ref(db,'bolao/jogos'), {});
   await set(ref(db,'bolao/lastSync'), null);
   showToast('Dados zerados.');
+};
+
+// ── GERENCIAR JOGOS: APAGAR JOGO ───────────────────────────────
+window.apagarJogo = async (id, nome) => {
+  if (!confirm(`Apagar o jogo "${nome}" e todos os palpites dele?\n\nEssa ação não pode ser desfeita.`)) return;
+  await remove(ref(db, `bolao/jogos/${id}`));
+  showToast(`Jogo apagado. 🗑️`);
+};
+
+// ── GERENCIAR JOGOS: APAGAR PALPITE ───────────────────────────
+window.apagarPalpite = async (jogoId, jogador) => {
+  if (!confirm(`Apagar o palpite de "${jogador}"?\n\nEssa ação não pode ser desfeita.`)) return;
+  await remove(ref(db, `bolao/jogos/${jogoId}/palpites/${jogador}`));
+  showToast(`Palpite de ${jogador} apagado.`);
+};
+
+// ── GERENCIAR JOGOS: ABRIR MODAL EDITAR ───────────────────────
+window.abrirEditarJogo = (id) => {
+  const jogo = dbData.jogos?.[id];
+  if (!jogo) { showToast('Jogo não encontrado.', true); return; }
+  document.getElementById('modal-jogo-id').value = id;
+  document.getElementById('modal-data').value  = jogo.data  || '';
+  document.getElementById('modal-hora').value  = jogo.hora  || '';
+  document.getElementById('modal-fase').value  = jogo.fase  || '';
+  // Set selects
+  const casaSel = document.getElementById('modal-casa');
+  const foraSel = document.getElementById('modal-fora');
+  for (let o of casaSel.options) { if (o.value === jogo.casa) { o.selected=true; break; } }
+  for (let o of foraSel.options) { if (o.value === jogo.fora) { o.selected=true; break; } }
+  document.getElementById('modal-editar').style.display = 'flex';
+};
+
+window.fecharModal = () => {
+  document.getElementById('modal-editar').style.display = 'none';
+};
+
+// Fechar modal clicando fora
+document.getElementById('modal-editar').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-editar')) fecharModal();
+});
+
+// ── GERENCIAR JOGOS: SALVAR EDIÇÃO ────────────────────────────
+window.salvarEdicaoJogo = async () => {
+  const id   = document.getElementById('modal-jogo-id').value;
+  const casa = document.getElementById('modal-casa').value;
+  const fora = document.getElementById('modal-fora').value;
+  const data = document.getElementById('modal-data').value;
+  const hora = document.getElementById('modal-hora').value;
+  const fase = document.getElementById('modal-fase').value.trim();
+  if (!data || !fase) { showToast('Preencha data e fase!', true); return; }
+  if (casa === fora)  { showToast('Times devem ser diferentes!', true); return; }
+  await update(ref(db, `bolao/jogos/${id}`), {casa, fora, data, hora, fase});
+  showToast('Jogo atualizado! ✅');
+  fecharModal();
 };
 
 // ── INIT ───────────────────────────────────────────────────────
