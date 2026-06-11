@@ -285,7 +285,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
       <button class="tab-btn active" onclick="showTab('ranking')" id="tab-ranking">🏆 Rank</button>
       <button class="tab-btn" onclick="showTab('jogos')" id="tab-jogos">⚽ Jogos</button>
       <button class="tab-btn" onclick="showTab('palpitar')" id="tab-palpitar">✏️ Palpitar</button>
-      ${currentUser?.isAdmin ? `<button class="tab-btn" onclick="showTab('admin')" id="tab-admin">⚙️ Admin</button>` : ''}
     </div>
   </div>
   <div class="main" id="content"></div>
@@ -917,11 +916,11 @@ function renderAdmin() {
         </div>
         <div style="font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.7">
           Ei, <strong style="color:var(--text)">${currentUser.username}</strong>! Tentando espiar o admin? 👀<br>
-          Isso aqui é só pra quem manda, seu viadão pretão.<br>
+          Isso aqui é só pra quem manda. Viadão. 🦦<br>
           <span style="font-size:12px">Volta pro seu palpite antes que alguém te veja.</span>
         </div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--gold);letter-spacing:1px;margin-bottom:20px">
-          🔒 Acesso negado. Tchonga.
+          🔒 Acesso negado. 🦍
         </div>
         <button class="btn-salvar" onclick="showTab('palpitar')">✏️ Ir Palpitar</button>
       </div>`;
