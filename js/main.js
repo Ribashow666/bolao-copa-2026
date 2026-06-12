@@ -23,19 +23,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
     const EMOJIS = { Milho: '🌽', Wly: '🦅', Igor: '🐺', Jucas: '🦁', Wendel: '⚡', Pedru: '🦊', Vini: '🐆', Melk: '🌊' };
     const FLAGS = {
       'Brazil': '🇧🇷', 'Argentina': '🇦🇷', 'France': '🇫🇷', 'Germany': '🇩🇪',
-      'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Spain': '🇪🇸', 'Portugal': '🇵🇹', 'Uruguay': '🇺🇾',
+      'England': '🏴󠁧󠁢', 'Spain': '🇪🇸', 'Portugal': '🇵🇹', 'Uruguay': '🇺🇾',
       'Mexico': '🇲🇽', 'United States': '🇺🇸', 'Japan': '🇯🇵', 'Morocco': '🇲🇦',
       'Netherlands': '🇳🇱', 'Belgium': '🇧🇪', 'Croatia': '🇭🇷', 'Senegal': '🇸🇳',
       'Australia': '🇦🇺', 'South Korea': '🇰🇷', 'Colombia': '🇨🇴', 'Ecuador': '🇪🇨',
       'Canada': '🇨🇦', 'Switzerland': '🇨🇭', 'Poland': '🇵🇱', 'Ghana': '🇬🇭',
       'Tunisia': '🇹🇳', 'Cameroon': '🇨🇲', 'Costa Rica': '🇨🇷', 'Saudi Arabia': '🇸🇦',
       'Iran': '🇮🇷', 'Serbia': '🇷🇸', 'Denmark': '🇩🇰', 'Norway': '🇳🇴',
-      'Sweden': '🇸🇪', 'Italy': '🇮🇹', 'Chile': '🇨🇱', 'Paraguay': '🇵🇾',
+      'Sweden': '🇸🇪', 'Bosnia and Herzegovina': '🇧🇦', 'Chile': '🇨🇱', 'Paraguay': '🇵🇾',
       'Bolivia': '🇧🇴', 'Venezuela': '🇻🇪', 'Peru': '🇵🇪', 'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
       'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Czech Republic': '🇨🇿', 'South Africa': '🇿🇦',
       'Turkey': '🇹🇷', 'Ukraine': '🇺🇦', 'Austria': '🇦🇹', 'Greece': '🇬🇷',
       'Honduras': '🇭🇳', 'Panama': '🇵🇦', 'Jamaica': '🇯🇲', 'Algeria': '🇩🇿',
-      'Egypt': '🇪🇬', 'Nigeria': '🇳🇬', 'Ivory Coast': '🇨🇮', 'New Zealand': '🇳🇿',
+      'Egypt': '🇪🇬', 'Nigeria': '🇳🇬', 'Ivory Coast': '🇨🇮', 'New Zealand':'🇳🇿',
       'Uzbekistan': '🇺🇿', 'Qatar': '🇶🇦', 'Mali': '🇲🇱', 'Indonesia': '🇮🇩',
     };
     const PTS = { EXATO: 25, VG: 18, DIFF: 15, DRAW: 15, LG: 12, WIN: 10, ALMOST: 4 };
