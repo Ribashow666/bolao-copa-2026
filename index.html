@@ -386,6 +386,18 @@ function todayBRT() {
   return brt.toISOString().substring(0,10);
 }
 
+// ── Retorna o "dia de exibição" do jogo: jogos de madrugada (antes das 06h) aparecem no dia anterior ──
+function diaExibicao(jogo) {
+  if (!jogo.hora) return jogo.data;
+  const [h] = jogo.hora.split(':').map(Number);
+  if (h < 6) {
+    const d = new Date(jogo.data + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().substring(0, 10);
+  }
+  return jogo.data;
+}
+
 // ── DEDUPLICAR jogos por casa+fora+data (mantém o com mais dados) ──
 function getJogos() {
   const all = Object.entries(dbData.jogos||{})
@@ -622,7 +634,6 @@ async function syncFromApi(force=false) {
     });
 
     const writes = validMatches.map(m => {
-      // ID estável: baseado em chave normalizada dos times + data — sem espaços ou caracteres especiais
       const fid = `of_${teamKey(m.team1)}_${teamKey(m.team2)}_${(m.date||'').replace(/-/g,'')}`;
       const {data, hora, kickoffUTC} = parseKickoffBRT(m.date, m.time);
       const fase = parseFase(m.group, m.round);
@@ -638,7 +649,9 @@ async function syncFromApi(force=false) {
           ...base,
           casa: m.team1, fora: m.team2,
           data, hora, fase, status,
-          resultado: hasScore? {casa: m.score1, fora: m.score2}: (base.resultado?.casa != null ? base.resultado : {casa:null, fora:null}),
+          resultado: hasScore
+            ? {casa: m.score1, fora: m.score2}
+            : (base.resultado?.casa != null ? base.resultado : {casa:null, fora:null}),
           palpites: base.palpites || {},
         };
       });
@@ -750,8 +763,8 @@ function renderMatchCard(jogo, opts={}) {
 function renderJogos() {
   const jogos  = getJogos();
   const hoje   = todayBRT();
-  const jogosHoje   = jogos.filter(j => j.data === hoje);
-  const outrosJogos = jogos.filter(j => j.data !== hoje);
+  const jogosHoje   = jogos.filter(j => diaExibicao(j) === hoje);
+  const outrosJogos = jogos.filter(j => diaExibicao(j) !== hoje);
   const fases  = ['Todos', ...new Set(jogos.map(j=>j.fase))];
   let h = `<div class="sec-title">⚽ Jogos da Copa</div>`;
 
@@ -767,7 +780,6 @@ function renderJogos() {
   fases.forEach(f => { h += `<button class="filter-btn ${filterFase===f?'active':''}" onclick="setFilter('${f}')">${f}</button>`; });
   h += `</div>`;
 
-  // Mostra todos (incluindo hoje) quando tem filtro de fase ativo; sem filtro mostra só os outros
   const list = filterFase === 'Todos' ? outrosJogos : jogos.filter(j => j.fase === filterFase);
   if (!list.length && !jogosHoje.length) {
     h += `<div class="empty">Nenhum jogo disponível.<br>Clique em Admin → Sincronizar agora.</div>`;
@@ -779,10 +791,10 @@ function renderJogos() {
 function renderPalpitar() {
   const jogos = getJogos();
   const hoje  = todayBRT();
-  const jogosHoje   = jogos.filter(j => j.data === hoje);
+  const jogosHoje   = jogos.filter(j => diaExibicao(j) === hoje);
   const abertos     = jogosHoje.filter(j => jogoAberto(j));
   const fechadosHoje= jogosHoje.filter(j => !jogoAberto(j));
-  const proximosDias= [...new Set(jogos.filter(j=>j.data>hoje).map(j=>j.data))].sort();
+  const proximosDias= [...new Set(jogos.filter(j=>diaExibicao(j)>hoje).map(j=>diaExibicao(j)))].sort();
   const proximoDia  = proximosDias[0] || null;
 
   let h = `<div class="sec-title">✏️ Palpites de Hoje</div>`;
