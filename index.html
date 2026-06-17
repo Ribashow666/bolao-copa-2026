@@ -175,6 +175,41 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   .pals-grid{grid-template-columns:1fr 1fr}
   .auth-card{padding:22px 16px}
 }
+.accordion{
+  margin-bottom:12px;
+  border:1px solid var(--border);
+  border-radius:11px;
+  overflow:hidden;
+  background:var(--surface);
+}
+
+.accordion-header{
+  width:100%;
+  background:var(--surface2);
+  color:var(--text);
+  border:none;
+  padding:12px 14px;
+  text-align:left;
+  cursor:pointer;
+  font-family:'Inter',sans-serif;
+  font-size:13px;
+  font-weight:600;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.accordion-header:hover{
+  background:#184624;
+}
+
+.accordion-content{
+  padding:10px;
+}
+
+.accordion-content.hidden{
+  display:none;
+}
 </style>
 </head>
 <body>
@@ -761,30 +796,137 @@ function renderMatchCard(jogo, opts={}) {
 }
 
 function renderJogos() {
-  const jogos  = getJogos();
-  const hoje   = todayBRT();
-  const jogosHoje   = jogos.filter(j => diaExibicao(j) === hoje);
-  const outrosJogos = jogos.filter(j => diaExibicao(j) !== hoje);
-  const fases  = ['Todos', ...new Set(jogos.map(j=>j.fase))];
+  const jogos = getJogos();
+  const hoje = todayBRT();
+
+  const fases = ['Todos', ...new Set(jogos.map(j => j.fase))];
+
+  const base =
+    filterFase === 'Todos'
+      ? jogos
+      : jogos.filter(j => j.fase === filterFase);
+
+  const jogosHoje = base.filter(j => diaExibicao(j) === hoje);
+
+  const jogosAnteriores = base
+    .filter(j => diaExibicao(j) < hoje)
+    .sort((a,b) => {
+      const da = `${a.data} ${a.hora||''}`;
+      const db = `${b.data} ${b.hora||''}`;
+      return db.localeCompare(da);
+    });
+
+  const jogosFuturos = base
+    .filter(j => diaExibicao(j) > hoje)
+    .sort((a,b) => {
+      const da = `${a.data} ${a.hora||''}`;
+      const db = `${b.data} ${b.hora||''}`;
+      return da.localeCompare(db);
+    });
+
   let h = `<div class="sec-title">⚽ Jogos da Copa</div>`;
 
+
+  // =====================
+  // JOGOS DE HOJE
+  // =====================
+  h += `<div class="today-header">📅 Jogos de Hoje</div>`;
+
   if (jogosHoje.length) {
-    h += `<div class="today-header">📅 Jogos de Hoje</div>`;
-    jogosHoje.forEach(j => { h += renderMatchCard(j, {highlight:true}); });
+    jogosHoje.forEach(j => {
+      h += renderMatchCard(j, { highlight:true });
+    });
   } else {
-    h += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;color:var(--text2);text-align:center">Nenhum jogo hoje. Próximos jogos abaixo 👇</div>`;
+    h += `
+      <div style="
+        background:var(--surface);
+        border:1px solid var(--border);
+        border-radius:10px;
+        padding:14px 16px;
+        margin-bottom:14px;
+        font-size:13px;
+        color:var(--text2);
+        text-align:center">
+        Nenhum jogo hoje.
+      </div>
+    `;
   }
 
-  h += `<div class="today-header" style="margin-top:10px">📋 Todos os Jogos</div>`;
   h += `<div class="filter-bar">`;
-  fases.forEach(f => { h += `<button class="filter-btn ${filterFase===f?'active':''}" onclick="setFilter('${f}')">${f}</button>`; });
+  fases.forEach(f => {
+    h += `
+      <button
+        class="filter-btn ${filterFase===f?'active':''}"
+        onclick="setFilter('${f}')">
+        ${f}
+      </button>
+    `;
+  });
   h += `</div>`;
 
-  const list = filterFase === 'Todos' ? outrosJogos : jogos.filter(j => j.fase === filterFase);
-  if (!list.length && !jogosHoje.length) {
-    h += `<div class="empty">Nenhum jogo disponível.<br>Clique em Admin → Sincronizar agora.</div>`;
+  // =====================
+  // JOGOS ANTERIORES
+  // =====================
+  h += `
+    <div class="accordion">
+      <button
+        class="accordion-header"
+        onclick="toggleAccordion('acc-anteriores')">
+        <span>⏪ Jogos Anteriores (${jogosAnteriores.length})</span>
+        <span data-acc="acc-anteriores">▶</span>
+      </button>
+
+      <div id="acc-anteriores"
+           class="accordion-content hidden">
+  `;
+
+  jogosAnteriores.forEach(j => {
+    h += renderMatchCard(j);
+  });
+
+  h += `
+      </div>
+    </div>
+  `;
+
+  // =====================
+  // JOGOS FUTUROS
+  // =====================
+  h += `
+    <div class="accordion">
+      <button
+        class="accordion-header"
+        onclick="toggleAccordion('acc-futuros')">
+        <span>⏩ Jogos Futuros (${jogosFuturos.length})</span>
+        <span data-acc="acc-futuros">▶</span>
+      </button>
+
+      <div id="acc-futuros"
+           class="accordion-content hidden">
+  `;
+
+  jogosFuturos.forEach(j => {
+    h += renderMatchCard(j);
+  });
+
+  h += `
+      </div>
+    </div>
+  `;
+
+  if (
+    !jogosHoje.length &&
+    !jogosAnteriores.length &&
+    !jogosFuturos.length
+  ) {
+    h += `
+      <div class="empty">
+        Nenhum jogo disponível.<br>
+        Clique em Admin → Sincronizar agora.
+      </div>
+    `;
   }
-  list.forEach(j => { h += renderMatchCard(j); });
+
   return h;
 }
 
@@ -867,7 +1009,6 @@ function renderAdmin() {
     <div style="font-size:12px;color:var(--text2);background:var(--surface2);border-radius:7px;padding:10px 12px;line-height:1.7"><strong style="color:var(--text)">Última sync:</strong> ${ls} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos (brutos):</strong> ${Object.keys(dbData.jogos||{}).length} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos (dedup):</strong> ${getJogos().length}</div>
     <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-sm" onclick="forcSync()">🔄 Sincronizar agora</button>
-      <button class="btn-danger" onclick="if(confirm('Apagar todos os jogos e palpites?'))zerarTudo()">🗑️ Zerar tudo</button>
     </div></div>`;
 
   const semRes = getJogos().filter(j=>!['FT','AET','PEN'].includes(j.status||'NS') || j.resultado?.casa == null);
@@ -980,6 +1121,18 @@ setTimeout(()=>{
   if (sess) { try { currentUser = JSON.parse(sess); bootApp(); } catch { localStorage.removeItem('bolao_session'); } }
   if (!currentUser) document.getElementById('auth-screen').style.display='flex';
 }, 1200);
+
+window.toggleAccordion = (id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  el.classList.toggle('hidden');
+
+  const icon = document.querySelector(`[data-acc="${id}"]`);
+  if (icon) {
+    icon.textContent = el.classList.contains('hidden') ? '▶' : '▼';
+  }
+};
 </script>
 </body>
 </html>
