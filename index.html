@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -209,6 +210,58 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 
 .accordion-content.hidden{
   display:none;
+}
+.day-accordion{
+  border:1px solid var(--border);
+  border-radius:10px;
+  overflow:hidden;
+  margin-bottom:10px;
+  background:var(--surface);
+}
+
+.day-accordion-hdr{
+  background:var(--surface2);
+  padding:10px 12px;
+  cursor:pointer;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.day-accordion-hdr.open{
+  border-bottom:1px solid var(--border);
+}
+
+.day-title{
+  font-size:13px;
+  font-weight:600;
+}
+
+.day-meta{
+  font-size:10px;
+  color:var(--text2);
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.day-chevron{
+  font-size:12px;
+  color:var(--text2);
+  transition:transform .2s;
+}
+
+.day-chevron.open{
+  transform:rotate(180deg);
+}
+
+.day-accordion-body{
+  display:none;
+  padding:8px;
+}
+
+.day-accordion-body.open{
+  display:block;
 }
 </style>
 </head>
@@ -794,47 +847,59 @@ function renderMatchCard(jogo, opts={}) {
   h+=`</div>`;
   return h;
 }
+function fmtDiaLong(data) {
+  if (!data) return '';
+  const [y, m, d] = data.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
 
+  return dt.toLocaleDateString('pt-BR', {
+    weekday:'long',
+    day:'2-digit',
+    month:'long'
+  });
+}
+
+window.toggleDay = id => {
+  const body = document.getElementById('day-body-'+id);
+  const hdr  = document.getElementById('day-hdr-'+id);
+  const chev = document.getElementById('day-chev-'+id);
+
+  const isOpen = body.classList.contains('open');
+
+  body.classList.toggle('open', !isOpen);
+  hdr.classList.toggle('open', !isOpen);
+  chev.classList.toggle('open', !isOpen);
+};
 function renderJogos() {
-  const jogos = getJogos();
-  const hoje = todayBRT();
+  const jogos  = getJogos();
+  const hoje   = todayBRT();
 
   const fases = ['Todos', ...new Set(jogos.map(j => j.fase))];
 
-  const base =
+  const filtrados =
     filterFase === 'Todos'
       ? jogos
       : jogos.filter(j => j.fase === filterFase);
 
-  const jogosHoje = base.filter(j => diaExibicao(j) === hoje);
+  const jogosHoje     = filtrados.filter(j => diaExibicao(j) === hoje);
+  const jogosPassados = filtrados.filter(j => diaExibicao(j) < hoje);
+  const jogosFuturos  = filtrados.filter(j => diaExibicao(j) > hoje);
 
-  const jogosAnteriores = base
-    .filter(j => diaExibicao(j) < hoje)
-    .sort((a,b) => {
-      const da = `${a.data} ${a.hora||''}`;
-      const db = `${b.data} ${b.hora||''}`;
-      return db.localeCompare(da);
-    });
+  const diasPassOrdenados =
+    [...new Set(jogosPassados.map(j => diaExibicao(j)))]
+      .sort()
+      .reverse();
 
-  const jogosFuturos = base
-    .filter(j => diaExibicao(j) > hoje)
-    .sort((a,b) => {
-      const da = `${a.data} ${a.hora||''}`;
-      const db = `${b.data} ${b.hora||''}`;
-      return da.localeCompare(db);
-    });
+  const diaAnterior = diasPassOrdenados[0] || null;
 
-  let h = `<div class="sec-title">⚽ Jogos da Copa</div>`;
+  let h = '';
 
-
-  // =====================
-  // JOGOS DE HOJE
-  // =====================
+  // HOJE
   h += `<div class="today-header">📅 Jogos de Hoje</div>`;
 
   if (jogosHoje.length) {
     jogosHoje.forEach(j => {
-      h += renderMatchCard(j, { highlight:true });
+      h += renderMatchCard(j, {highlight:true});
     });
   } else {
     h += `
@@ -842,15 +907,17 @@ function renderJogos() {
         background:var(--surface);
         border:1px solid var(--border);
         border-radius:10px;
-        padding:14px 16px;
+        padding:14px;
         margin-bottom:14px;
-        font-size:13px;
-        color:var(--text2);
-        text-align:center">
+        text-align:center;
+        color:var(--text2)">
         Nenhum jogo hoje.
       </div>
     `;
   }
+
+  // FILTROS
+  h += `<div class="today-header">⚽ Jogos da Copa</div>`;
 
   h += `<div class="filter-bar">`;
   fases.forEach(f => {
@@ -864,67 +931,160 @@ function renderJogos() {
   });
   h += `</div>`;
 
-  // =====================
-  // JOGOS ANTERIORES
-  // =====================
-  h += `
-    <div class="accordion">
-      <button
-        class="accordion-header"
-        onclick="toggleAccordion('acc-anteriores')">
-        <span>⏪ Jogos Anteriores (${jogosAnteriores.length})</span>
-        <span data-acc="acc-anteriores">▶</span>
-      </button>
+  if (!filtrados.length) {
+    h += `<div class="empty">Nenhum jogo disponível.</div>`;
+    return h;
+  }
 
-      <div id="acc-anteriores"
-           class="accordion-content hidden">
-  `;
+  // ANTERIORES
+  if (jogosPassados.length) {
 
-  jogosAnteriores.forEach(j => {
-    h += renderMatchCard(j);
-  });
-
-  h += `
-      </div>
-    </div>
-  `;
-
-  // =====================
-  // JOGOS FUTUROS
-  // =====================
-  h += `
-    <div class="accordion">
-      <button
-        class="accordion-header"
-        onclick="toggleAccordion('acc-futuros')">
-        <span>⏩ Jogos Futuros (${jogosFuturos.length})</span>
-        <span data-acc="acc-futuros">▶</span>
-      </button>
-
-      <div id="acc-futuros"
-           class="accordion-content hidden">
-  `;
-
-  jogosFuturos.forEach(j => {
-    h += renderMatchCard(j);
-  });
-
-  h += `
-      </div>
-    </div>
-  `;
-
-  if (
-    !jogosHoje.length &&
-    !jogosAnteriores.length &&
-    !jogosFuturos.length
-  ) {
     h += `
-      <div class="empty">
-        Nenhum jogo disponível.<br>
-        Clique em Admin → Sincronizar agora.
+      <div class="today-header" style="margin-top:14px">
+        📋 Jogos Anteriores
       </div>
     `;
+
+    diasPassOrdenados.forEach(dia => {
+
+      const lista =
+        jogosPassados.filter(
+          j => diaExibicao(j) === dia
+        );
+
+      const dayId =
+        'past_' + dia.replace(/-/g,'');
+
+      const temRes =
+        lista.some(
+          j => j.resultado?.casa != null
+        );
+
+      const isOpen =
+        dia === diaAnterior;
+
+      h += `
+        <div class="day-accordion">
+
+          <div
+            class="day-accordion-hdr ${isOpen?'open':''}"
+            id="day-hdr-${dayId}"
+            onclick="toggleDay('${dayId}')">
+
+            <div class="day-title">
+              📅 ${fmtDiaLong(dia)}
+            </div>
+
+            <div class="day-meta">
+              <span>
+                ${lista.length} jogo${lista.length>1?'s':''}
+              </span>
+
+              ${
+                temRes
+                ? '<span style="color:#4ade80">✓ encerrado</span>'
+                : '<span style="color:#c084fc">sem placar</span>'
+              }
+
+              <span
+                class="day-chevron ${isOpen?'open':''}"
+                id="day-chev-${dayId}">
+                ▼
+              </span>
+            </div>
+
+          </div>
+
+          <div
+            class="day-accordion-body ${isOpen?'open':''}"
+            id="day-body-${dayId}">
+      `;
+
+      lista.forEach(j => {
+        h += renderMatchCard(j);
+      });
+
+      h += `
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  // FUTUROS
+  if (jogosFuturos.length) {
+
+    const diasFut =
+      [...new Set(jogosFuturos.map(j => diaExibicao(j)))]
+      .sort();
+
+    h += `
+      <div class="today-header" style="margin-top:14px">
+        📅 Próximos Jogos
+      </div>
+    `;
+
+    diasFut.forEach(dia => {
+
+      const lista =
+        jogosFuturos.filter(
+          j => diaExibicao(j) === dia
+        );
+
+      const dayId =
+        'fut_' + dia.replace(/-/g,'');
+
+      const temAberto =
+        lista.some(j => jogoAberto(j));
+
+      h += `
+        <div class="day-accordion">
+
+          <div
+            class="day-accordion-hdr"
+            id="day-hdr-${dayId}"
+            onclick="toggleDay('${dayId}')">
+
+            <div class="day-title">
+              📅 ${fmtDiaLong(dia)}
+            </div>
+
+            <div class="day-meta">
+
+              <span>
+                ${lista.length} jogo${lista.length>1?'s':''}
+              </span>
+
+              ${
+                temAberto
+                ? '<span style="color:#fbbf24">● aberto</span>'
+                : ''
+              }
+
+              <span
+                class="day-chevron"
+                id="day-chev-${dayId}">
+                ▼
+              </span>
+
+            </div>
+
+          </div>
+
+          <div
+            class="day-accordion-body"
+            id="day-body-${dayId}">
+      `;
+
+      lista.forEach(j => {
+        h += renderMatchCard(j);
+      });
+
+      h += `
+          </div>
+        </div>
+      `;
+    });
   }
 
   return h;
