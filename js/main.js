@@ -60,6 +60,7 @@ function calcPts(real, pal) {
   if (rc===pc && rf===pf)        return {pts:PTS.EXATO, tipo:'exact'};
   const pD=pc===pf, rD=rc===rf;
   if (pD && !rD)                 return {pts:PTS.ALMOST, tipo:'almost'};
+  if (rD && !pD)                 return {pts:0,          tipo:'miss'};
   if (rD && pD)                  return {pts:PTS.DRAW,   tipo:'draw'};
   const rWC=rc>rf, pWC=pc>pf;
   if (rWC!==pWC)                 return {pts:0, tipo:'miss'};
@@ -110,6 +111,18 @@ function tempoParaJogo(jogo) {
 function todayBRT() {
   const brt = new Date(Date.now() - 3*3600000);
   return brt.toISOString().substring(0,10);
+}
+
+// ── Retorna o "dia de exibição" do jogo: jogos de madrugada (antes das 06h) aparecem no dia anterior ──
+function diaExibicao(jogo) {
+  if (!jogo.hora) return jogo.data;
+  const [h] = jogo.hora.split(':').map(Number);
+  if (h < 6) {
+    const d = new Date(jogo.data + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().substring(0, 10);
+  }
+  return jogo.data;
 }
 
 // ── DEDUPLICAR jogos por casa+fora+data (mantém o com mais dados) ──
@@ -348,7 +361,6 @@ async function syncFromApi(force=false) {
     });
 
     const writes = validMatches.map(m => {
-      // ID estável: baseado em chave normalizada dos times + data — sem espaços ou caracteres especiais
       const fid = `of_${teamKey(m.team1)}_${teamKey(m.team2)}_${(m.date||'').replace(/-/g,'')}`;
       const {data, hora, kickoffUTC} = parseKickoffBRT(m.date, m.time);
       const fase = parseFase(m.group, m.round);
@@ -364,7 +376,9 @@ async function syncFromApi(force=false) {
           ...base,
           casa: m.team1, fora: m.team2,
           data, hora, fase, status,
-          resultado: hasScore ? {casa: m.score1, fora: m.score2} : (base.resultado || {casa:null, fora:null}),
+          resultado: hasScore
+            ? {casa: m.score1, fora: m.score2}
+            : (base.resultado?.casa != null ? base.resultado : {casa:null, fora:null}),
           palpites: base.palpites || {},
         };
       });
@@ -472,43 +486,256 @@ function renderMatchCard(jogo, opts={}) {
   h+=`</div>`;
   return h;
 }
+function fmtDiaLong(data) {
+  if (!data) return '';
+  const [y, m, d] = data.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
 
+  return dt.toLocaleDateString('pt-BR', {
+    weekday:'long',
+    day:'2-digit',
+    month:'long'
+  });
+}
+
+window.toggleDay = id => {
+  const body = document.getElementById('day-body-'+id);
+  const hdr  = document.getElementById('day-hdr-'+id);
+  const chev = document.getElementById('day-chev-'+id);
+
+  const isOpen = body.classList.contains('open');
+
+  body.classList.toggle('open', !isOpen);
+  hdr.classList.toggle('open', !isOpen);
+  chev.classList.toggle('open', !isOpen);
+};
 function renderJogos() {
   const jogos  = getJogos();
   const hoje   = todayBRT();
-  const jogosHoje   = jogos.filter(j => j.data === hoje);
-  const outrosJogos = jogos.filter(j => j.data !== hoje);
-  const fases  = ['Todos', ...new Set(jogos.map(j=>j.fase))];
-  let h = `<div class="sec-title">⚽ Jogos da Copa</div>`;
+
+  const fases = ['Todos', ...new Set(jogos.map(j => j.fase))];
+
+  const filtrados =
+    filterFase === 'Todos'
+      ? jogos
+      : jogos.filter(j => j.fase === filterFase);
+
+  const jogosHoje     = filtrados.filter(j => diaExibicao(j) === hoje);
+  const jogosPassados = filtrados.filter(j => diaExibicao(j) < hoje);
+  const jogosFuturos  = filtrados.filter(j => diaExibicao(j) > hoje);
+
+  const diasPassOrdenados =
+    [...new Set(jogosPassados.map(j => diaExibicao(j)))]
+      .sort()
+      .reverse();
+
+  const diaAnterior = diasPassOrdenados[0] || null;
+
+  let h = '';
+
+  // HOJE
+  h += `<div class="today-header">📅 Jogos de Hoje</div>`;
 
   if (jogosHoje.length) {
-    h += `<div class="today-header">📅 Jogos de Hoje</div>`;
-    jogosHoje.forEach(j => { h += renderMatchCard(j, {highlight:true}); });
+    jogosHoje.forEach(j => {
+      h += renderMatchCard(j, {highlight:true});
+    });
   } else {
-    h += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;color:var(--text2);text-align:center">Nenhum jogo hoje. Próximos jogos abaixo 👇</div>`;
+    h += `
+      <div style="
+        background:var(--surface);
+        border:1px solid var(--border);
+        border-radius:10px;
+        padding:14px;
+        margin-bottom:14px;
+        text-align:center;
+        color:var(--text2)">
+        Nenhum jogo hoje.
+      </div>
+    `;
   }
 
-  h += `<div class="today-header" style="margin-top:10px">📋 Todos os Jogos</div>`;
+  // FILTROS
+  h += `<div class="today-header">⚽ Jogos da Copa</div>`;
+
   h += `<div class="filter-bar">`;
-  fases.forEach(f => { h += `<button class="filter-btn ${filterFase===f?'active':''}" onclick="setFilter('${f}')">${f}</button>`; });
+  fases.forEach(f => {
+    h += `
+      <button
+        class="filter-btn ${filterFase===f?'active':''}"
+        onclick="setFilter('${f}')">
+        ${f}
+      </button>
+    `;
+  });
   h += `</div>`;
 
-  // Mostra todos (incluindo hoje) quando tem filtro de fase ativo; sem filtro mostra só os outros
-  const list = filterFase === 'Todos' ? outrosJogos : jogos.filter(j => j.fase === filterFase);
-  if (!list.length && !jogosHoje.length) {
-    h += `<div class="empty">Nenhum jogo disponível.<br>Clique em Admin → Sincronizar agora.</div>`;
+  if (!filtrados.length) {
+    h += `<div class="empty">Nenhum jogo disponível.</div>`;
+    return h;
   }
-  list.forEach(j => { h += renderMatchCard(j); });
+
+  // ANTERIORES
+  if (jogosPassados.length) {
+
+    h += `
+      <div class="today-header" style="margin-top:14px">
+        📋 Jogos Anteriores
+      </div>
+    `;
+
+    diasPassOrdenados.forEach(dia => {
+
+      const lista =
+        jogosPassados.filter(
+          j => diaExibicao(j) === dia
+        );
+
+      const dayId =
+        'past_' + dia.replace(/-/g,'');
+
+      const temRes =
+        lista.some(
+          j => j.resultado?.casa != null
+        );
+
+      const isOpen =
+        dia === diaAnterior;
+
+      h += `
+        <div class="day-accordion">
+
+          <div
+            class="day-accordion-hdr ${isOpen?'open':''}"
+            id="day-hdr-${dayId}"
+            onclick="toggleDay('${dayId}')">
+
+            <div class="day-title">
+              📅 ${fmtDiaLong(dia)}
+            </div>
+
+            <div class="day-meta">
+              <span>
+                ${lista.length} jogo${lista.length>1?'s':''}
+              </span>
+
+              ${
+                temRes
+                ? '<span style="color:#4ade80">✓ encerrado</span>'
+                : '<span style="color:#c084fc">sem placar</span>'
+              }
+
+              <span
+                class="day-chevron ${isOpen?'open':''}"
+                id="day-chev-${dayId}">
+                ▼
+              </span>
+            </div>
+
+          </div>
+
+          <div
+            class="day-accordion-body ${isOpen?'open':''}"
+            id="day-body-${dayId}">
+      `;
+
+      lista.forEach(j => {
+        h += renderMatchCard(j);
+      });
+
+      h += `
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  // FUTUROS
+  if (jogosFuturos.length) {
+
+    const diasFut =
+      [...new Set(jogosFuturos.map(j => diaExibicao(j)))]
+      .sort();
+
+    h += `
+      <div class="today-header" style="margin-top:14px">
+        📅 Próximos Jogos
+      </div>
+    `;
+
+    diasFut.forEach(dia => {
+
+      const lista =
+        jogosFuturos.filter(
+          j => diaExibicao(j) === dia
+        );
+
+      const dayId =
+        'fut_' + dia.replace(/-/g,'');
+
+      const temAberto =
+        lista.some(j => jogoAberto(j));
+
+      h += `
+        <div class="day-accordion">
+
+          <div
+            class="day-accordion-hdr"
+            id="day-hdr-${dayId}"
+            onclick="toggleDay('${dayId}')">
+
+            <div class="day-title">
+              📅 ${fmtDiaLong(dia)}
+            </div>
+
+            <div class="day-meta">
+
+              <span>
+                ${lista.length} jogo${lista.length>1?'s':''}
+              </span>
+
+              ${
+                temAberto
+                ? '<span style="color:#fbbf24">● aberto</span>'
+                : ''
+              }
+
+              <span
+                class="day-chevron"
+                id="day-chev-${dayId}">
+                ▼
+              </span>
+
+            </div>
+
+          </div>
+
+          <div
+            class="day-accordion-body"
+            id="day-body-${dayId}">
+      `;
+
+      lista.forEach(j => {
+        h += renderMatchCard(j);
+      });
+
+      h += `
+          </div>
+        </div>
+      `;
+    });
+  }
+
   return h;
 }
 
 function renderPalpitar() {
   const jogos = getJogos();
   const hoje  = todayBRT();
-  const jogosHoje   = jogos.filter(j => j.data === hoje);
+  const jogosHoje   = jogos.filter(j => diaExibicao(j) === hoje);
   const abertos     = jogosHoje.filter(j => jogoAberto(j));
   const fechadosHoje= jogosHoje.filter(j => !jogoAberto(j));
-  const proximosDias= [...new Set(jogos.filter(j=>j.data>hoje).map(j=>j.data))].sort();
+  const proximosDias= [...new Set(jogos.filter(j=>diaExibicao(j)>hoje).map(j=>diaExibicao(j)))].sort();
   const proximoDia  = proximosDias[0] || null;
 
   let h = `<div class="sec-title">✏️ Palpites de Hoje</div>`;
@@ -581,10 +808,9 @@ function renderAdmin() {
     <div style="font-size:12px;color:var(--text2);background:var(--surface2);border-radius:7px;padding:10px 12px;line-height:1.7"><strong style="color:var(--text)">Última sync:</strong> ${ls} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos (brutos):</strong> ${Object.keys(dbData.jogos||{}).length} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos (dedup):</strong> ${getJogos().length}</div>
     <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-sm" onclick="forcSync()">🔄 Sincronizar agora</button>
-      <button class="btn-danger" onclick="if(confirm('Apagar todos os jogos e palpites?'))zerarTudo()">🗑️ Zerar tudo</button>
     </div></div>`;
 
-  const semRes = getJogos().filter(j=>!['FT','AET','PEN'].includes(j.status||'NS'));
+  const semRes = getJogos().filter(j=>!['FT','AET','PEN'].includes(j.status||'NS') || j.resultado?.casa == null);
   if (semRes.length) {
     h+=`<div class="admin-box"><div class="admin-box-title">📝 Inserir Resultado Manual</div><div style="font-size:11px;color:var(--text2);margin-bottom:10px">Use para corrigir ou adiantar resultado antes da API atualizar.</div>`;
     semRes.slice(0,15).forEach(jogo=>{
@@ -694,3 +920,15 @@ setTimeout(()=>{
   if (sess) { try { currentUser = JSON.parse(sess); bootApp(); } catch { localStorage.removeItem('bolao_session'); } }
   if (!currentUser) document.getElementById('auth-screen').style.display='flex';
 }, 1200);
+
+window.toggleAccordion = (id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  el.classList.toggle('hidden');
+
+  const icon = document.querySelector(`[data-acc="${id}"]`);
+  if (icon) {
+    icon.textContent = el.classList.contains('hidden') ? '▶' : '▼';
+  }
+};
