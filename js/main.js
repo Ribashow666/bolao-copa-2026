@@ -15,7 +15,7 @@ const fbApp = initializeApp(FB_CONFIG);
 const db    = getDatabase(fbApp);
 
 const KNOWN_PLAYERS = ['Milho','Wly','Igor','Jucas','Wendel','Pedru','Vini','Melk'];
-const EMOJIS = {Milho:'🌽',Wly:'🦅',Igor:'🐺',Jucas:'🦁',Wendel:'⚡',Pedru:'🦊',Vini:'🐆',Melk:'🌊'};
+const EMOJIS = {Milho:'🌽',Wly:'🦅',Igor:'🐺',Jucas:'🦁',Wendel:'⚡',Pedru:'🦧',Vini:'🐆',Melk:'🌊'};
 const FLAGS = {
   'Brazil':'🇧🇷','Argentina':'🇦🇷','France':'🇫🇷','Germany':'🇩🇪',
   'England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Spain':'🇪🇸','Portugal':'🇵🇹','Uruguay':'🇺🇾',
