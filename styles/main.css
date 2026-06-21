@@ -1,4 +1,4 @@
-  *{box-sizing:border-box;margin:0;padding:0}
+*{box-sizing:border-box;margin:0;padding:0}
 :root{
   --gold:#C9A84C;--gold2:#e0c96a;
   --green-dark:#062F15;--green-light:#1A7A3A;
@@ -252,4 +252,37 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 
 .day-accordion-body.open{
   display:block;
+}
+
+/* ── Evolução do Ranking (gráfico) ── */
+.evolucao-box{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:11px;
+  padding:13px;
+  margin-top:13px;
+}
+
+.evolucao-title{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:15px;
+  color:var(--gold);
+  letter-spacing:1.5px;
+  margin-bottom:9px;
+}
+
+.evolucao-hint{
+  font-size:10px;
+  color:var(--text2);
+  margin-bottom:10px;
+}
+
+.evolucao-canvas-wrap{
+  position:relative;
+  width:100%;
+  height:260px;
+}
+
+@media(max-width:480px){
+  .evolucao-canvas-wrap{ height:220px; }
 }

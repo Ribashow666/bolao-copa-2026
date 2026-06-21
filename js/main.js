@@ -18,7 +18,7 @@ const KNOWN_PLAYERS = ['Milho','Wly','Igor','Jucas','Wendel','Pedru','Vini','Mel
 const EMOJIS = {Milho:'🌽',Wly:'🦅',Igor:'🐺',Jucas:'🦁',Wendel:'⚡',Pedru:'🐉',Vini:'🐆',Melk:'🌊'};
 const FLAGS = {
   'Brazil':'🇧🇷','Argentina':'🇦🇷','France':'🇫🇷','Germany':'🇩🇪',
-  'England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Spain':'🇪🇸','Portugal':'🇵🇹','Uruguay':'🇺🇾',
+  'England':'🏴','Spain':'🇪🇸','Portugal':'🇵🇹','Uruguay':'🇺🇾',
   'Mexico':'🇲🇽','United States':'🇺🇸','Japan':'🇯🇵','Morocco':'🇲🇦',
   'Netherlands':'🇳🇱','Belgium':'🇧🇪','Croatia':'🇭🇷','Senegal':'🇸🇳',
   'Australia':'🇦🇺','South Korea':'🇰🇷','Colombia':'🇨🇴','Ecuador':'🇪🇨',
@@ -26,8 +26,8 @@ const FLAGS = {
   'Tunisia':'🇹🇳','Cameroon':'🇨🇲','Costa Rica':'🇨🇷','Saudi Arabia':'🇸🇦',
   'Iran':'🇮🇷','Serbia':'🇷🇸','Denmark':'🇩🇰','Norway':'🇳🇴',
   'Sweden':'🇸🇪','Italy':'🇮🇹','Chile':'🇨🇱','Paraguay':'🇵🇾',
-  'Bolivia':'🇧🇴','Venezuela':'🇻🇪','Peru':'🇵🇪','Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿',
-  'Wales':'🏴󠁧󠁢󠁷󠁬󠁳󠁿','Czech Republic':'🇨🇿','South Africa':'🇿🇦',
+  'Bolivia':'🇧🇴','Venezuela':'🇻🇪','Peru':'🇵🇪','Scotland':'🏴',
+  'Wales':'🏴','Czech Republic':'🇨🇿','South Africa':'🇿🇦',
   'Turkey':'🇹🇷','Ukraine':'🇺🇦','Austria':'🇦🇹','Greece':'🇬🇷',
   'Honduras':'🇭🇳','Panama':'🇵🇦','Jamaica':'🇯🇲','Algeria':'🇩🇿',
   'Egypt':'🇪🇬','Nigeria':'🇳🇬','Ivory Coast':'🇨🇮','New Zealand':'🇳🇿',
@@ -172,6 +172,43 @@ function computeRanking() {
   getJogos().forEach(j=>Object.keys(j.palpites||{}).forEach(n=>allPalPlayers.add(n)));
   const visible = Object.entries(pts).filter(([n])=>KNOWN_PLAYERS.includes(n)||allPalPlayers.has(n));
   return {sorted: visible.sort((a,b)=>b[1]-a[1]), exact};
+}
+
+// ── Evolução de pontos acumulados por jogador, agrupado por dia de exibição ──
+function computeEvolucao() {
+  const jogos = getJogos()
+    .filter(j => j.resultado?.casa != null)
+    .sort((a,b)=>{
+      const da=diaExibicao(a), db_=diaExibicao(b);
+      return da>db_ ? 1 : da<db_ ? -1 : 0;
+    });
+
+  const allPalPlayers = new Set();
+  jogos.forEach(j=>Object.keys(j.palpites||{}).forEach(n=>allPalPlayers.add(n)));
+  const jogadores = [...new Set([...KNOWN_PLAYERS, ...allPalPlayers])];
+
+  const dias = [...new Set(jogos.map(j=>diaExibicao(j)))].sort();
+  if (!dias.length) return {dias:[], series:{}};
+
+  const acumulado = {};
+  jogadores.forEach(j=>acumulado[j]=0);
+
+  const series = {};
+  jogadores.forEach(j=>series[j]=[]);
+
+  dias.forEach(dia=>{
+    const jogosDoDia = jogos.filter(j=>diaExibicao(j)===dia);
+    jogosDoDia.forEach(jogo=>{
+      const multi = getMulti(jogo.fase);
+      Object.entries(jogo.palpites||{}).forEach(([jogador,p])=>{
+        const r = calcPts(jogo.resultado,p);
+        if (r) acumulado[jogador] = (acumulado[jogador]||0) + (r.pts*multi);
+      });
+    });
+    jogadores.forEach(j=>series[j].push(acumulado[j]));
+  });
+
+  return {dias, series};
 }
 
 function showToast(msg, isErr=false) {
@@ -412,10 +449,72 @@ window.setFilter = fase => { filterFase=fase; render(); };
 function render() {
   const el=document.getElementById('content');
   if (!el) return;
-  if (currentTab==='ranking')  el.innerHTML=renderRanking();
+  if (currentTab==='ranking')  { el.innerHTML=renderRanking(); initEvolucaoChart(); }
   if (currentTab==='jogos')    el.innerHTML=renderJogos();
   if (currentTab==='palpitar') el.innerHTML=renderPalpitar();
   if (currentTab==='admin')    el.innerHTML=renderAdmin();
+}
+
+let evolucaoChart = null;
+function initEvolucaoChart() {
+  const canvas = document.getElementById('evolucao-chart');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  const {dias, series} = computeEvolucao();
+  if (evolucaoChart) { evolucaoChart.destroy(); evolucaoChart=null; }
+
+  if (!dias.length) return;
+
+  const palette = ['#C9A84C','#4ade80','#f87171','#60a5fa','#c084fc','#fb923c','#2dd4bf','#f472b6'];
+  const jogadores = Object.keys(series);
+
+  const datasets = jogadores.map((j,i)=>({
+    label: `${emo(j)} ${j}`,
+    data: series[j],
+    borderColor: palette[i%palette.length],
+    backgroundColor: palette[i%palette.length],
+    borderWidth: 2,
+    pointRadius: 3,
+    pointHoverRadius: 5,
+    tension: 0.25,
+    fill: false,
+  }));
+
+  const labels = dias.map(d=>fmtDate(d));
+
+  evolucaoChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#F0EDD8', font: {size: 11}, boxWidth: 12, padding: 10 },
+          onClick: (e, legendItem, legend) => {
+            const idx = legendItem.datasetIndex;
+            const ci = legend.chart;
+            const meta = ci.getDatasetMeta(idx);
+            meta.hidden = meta.hidden === null ? !ci.data.datasets[idx].hidden : !meta.hidden;
+            ci.update();
+          }
+        },
+        tooltip: {
+          backgroundColor: '#0D3318',
+          titleColor: '#C9A84C',
+          bodyColor: '#F0EDD8',
+          borderColor: '#1F5530',
+          borderWidth: 1,
+        }
+      },
+      scales: {
+        x: { ticks:{color:'#A8C4A0', font:{size:10}}, grid:{color:'#1F5530'} },
+        y: { ticks:{color:'#A8C4A0', font:{size:10}}, grid:{color:'#1F5530'}, beginAtZero:true }
+      }
+    }
+  });
 }
 
 function renderRanking() {
@@ -429,7 +528,20 @@ function renderRanking() {
   sorted.slice(3).forEach(([n,p],i)=>{
     h+=`<div class="rank-item"><span class="rank-pos">${i+4}º</span><span style="font-size:16px">${emo(n)}</span><span class="rank-name">${n}</span><div style="text-align:right"><div class="rank-pts">${p}</div><div style="font-size:10px;color:var(--text2)">pontos</div></div></div>`;
   });
-  h+=`</div><div class="vidente-box"><div class="vidente-title">⭐ Prêmio Vidente 🔮 <span style="font-size:10px;font-weight:400;color:var(--text2)">(mais placares exatos)</span></div>`;
+  h+=`</div>`;
+
+  // ── Evolução do ranking ──
+  const {dias} = computeEvolucao();
+  h+=`<div class="evolucao-box"><div class="evolucao-title">📈 Evolução do Ranking</div>`;
+  if (!dias.length) {
+    h+=`<div style="color:var(--text2);font-size:12px;padding:10px 0">Ainda sem jogos com resultado para mostrar evolução.</div>`;
+  } else {
+    h+=`<div class="evolucao-hint">Clique nos nomes abaixo do gráfico para esconder/mostrar jogadores.</div>
+    <div class="evolucao-canvas-wrap"><canvas id="evolucao-chart"></canvas></div>`;
+  }
+  h+=`</div>`;
+
+  h+=`<div class="vidente-box"><div class="vidente-title">⭐ Prêmio Vidente 🔮 <span style="font-size:10px;font-weight:400;color:var(--text2)">(mais placares exatos)</span></div>`;
   const vid=Object.entries(exact).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   if (!vid.length) h+=`<div style="color:var(--text2);font-size:12px">Nenhum placar exato ainda.</div>`;
   vid.forEach(([n,c],i)=>{
