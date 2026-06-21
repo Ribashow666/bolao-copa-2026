@@ -210,6 +210,28 @@ function computeEvolucao() {
 
   return {dias, series};
 }
+function computeRankingPorDia() {
+  const { dias, series } = computeEvolucao();
+
+  const rankings = {};
+
+  dias.forEach((dia, idx) => {
+    const rankingDia = Object.entries(series)
+      .map(([jogador, pontos]) => ({
+        jogador,
+        pontos: pontos[idx]
+      }))
+      .sort((a, b) => b.pontos - a.pontos);
+
+    rankings[dia] = {};
+
+    rankingDia.forEach((item, pos) => {
+      rankings[dia][item.jogador] = pos + 1;
+    });
+  });
+
+  return rankings;
+}
 
 function showToast(msg, isErr=false) {
   const t=document.getElementById('toast');
@@ -461,6 +483,7 @@ function initEvolucaoChart() {
   if (!canvas || typeof Chart === 'undefined') return;
 
   const {dias, series} = computeEvolucao();
+  const rankingPorDia = computeRankingPorDia();
   if (evolucaoChart) { evolucaoChart.destroy(); evolucaoChart=null; }
 
   if (!dias.length) return;
@@ -502,12 +525,41 @@ function initEvolucaoChart() {
           }
         },
         tooltip: {
-          backgroundColor: '#0D3318',
-          titleColor: '#C9A84C',
-          bodyColor: '#F0EDD8',
-          borderColor: '#1F5530',
-          borderWidth: 1,
-        }
+  backgroundColor: '#0D3318',
+  titleColor: '#C9A84C',
+  bodyColor: '#F0EDD8',
+  borderColor: '#1F5530',
+  borderWidth: 1,
+
+  itemSort: (a, b) => {
+    const dia = dias[a.dataIndex];
+
+    const jogadorA = a.dataset.label.replace(/^.+?\s/, '');
+    const jogadorB = b.dataset.label.replace(/^.+?\s/, '');
+
+    return rankingPorDia[dia][jogadorA] - rankingPorDia[dia][jogadorB];
+  },
+
+  callbacks: {
+    label: function(context) {
+      const jogador =
+        context.dataset.label.replace(/^.+?\s/, '');
+
+      const dia = dias[context.dataIndex];
+
+      const pos =
+        rankingPorDia[dia][jogador];
+
+      const medalha =
+        pos === 1 ? '🥇' :
+        pos === 2 ? '🥈' :
+        pos === 3 ? '🥉' :
+        `${pos}º`;
+
+      return `${medalha} ${jogador} - ${context.parsed.y} pts`;
+    }
+  }
+}
       },
       scales: {
         x: { ticks:{color:'#A8C4A0', font:{size:10}}, grid:{color:'#1F5530'} },
