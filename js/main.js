@@ -463,19 +463,26 @@ async function syncFromApi(force=false) {
 }
 
 window.showTab = tab => {
-  currentTab=tab;
-  ['ranking','jogos','palpitar','admin'].forEach(t=>{ const el=document.getElementById(`tab-${t}`); if(el) el.classList.toggle('active', t===tab); });
+  currentTab = tab;
+  
+  // Atualiza visual de TODAS as abas
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.id === `tab-${tab}`);
+  });
+
   render();
 };
 window.setFilter = fase => { filterFase=fase; render(); };
 
 function render() {
-  const el=document.getElementById('content');
+  const el = document.getElementById('content');
   if (!el) return;
-  if (currentTab==='ranking')  { el.innerHTML=renderRanking(); initEvolucaoChart(); }
-  if (currentTab==='jogos')    el.innerHTML=renderJogos();
-  if (currentTab==='palpitar') el.innerHTML=renderPalpitar();
-  if (currentTab==='admin')    el.innerHTML=renderAdmin();
+
+  if (currentTab === 'ranking')   { el.innerHTML = renderRanking(); initEvolucaoChart(); }
+  else if (currentTab === 'jogos')     { el.innerHTML = renderJogos(); }
+  else if (currentTab === 'palpitar')  { el.innerHTML = renderPalpitar(); }
+  else if (currentTab === 'admin')     { el.innerHTML = renderAdmin(); }
+  else if (currentTab === 'vergonha')  { el.innerHTML = renderVergonha(); }
 }
 
 let evolucaoChart = null;
@@ -1139,6 +1146,170 @@ setTimeout(()=>{
   if (sess) { try { currentUser = JSON.parse(sess); bootApp(); } catch { localStorage.removeItem('bolao_session'); } }
   if (!currentUser) document.getElementById('auth-screen').style.display='flex';
 }, 1200);
+// ====================== HALL DA VERGONHA ======================
+
+// ====================== HALL DA VERGONHA ======================
+
+function computeHallDaVergonha() {
+  const jogos = getJogos();
+  const rankingPorDia = computeRankingPorDia();
+  
+  const allPlayers = [...new Set([
+    ...KNOWN_PLAYERS,
+    ...Object.values(dbData.users || {}).map(u => u.displayName)
+  ])];
+
+  const hall = {
+    profetaReverso: [],
+    peFrio: [],
+    dormiuNoPonto: [],
+    investidorOi: [],
+    zebraMorto: [],
+    maratonistaLanterna: [],
+    apostadorCompulsivo: []
+  };
+
+  const stats = {};
+  allPlayers.forEach(p => {
+    stats[p] = {
+      semPalpite: 0,
+      exactErrados: 0,
+      peFrio: 0,
+      maxSeqSemPontos: 0,
+      currentSeq: 0,
+      zebraErrada: 0,
+      diff3mais: 0,
+    };
+  });
+
+  jogos.forEach(jogo => {
+    const palpites = jogo.palpites || {};
+    const temRes = jogo.resultado?.casa != null;
+
+    allPlayers.forEach(player => {
+      const pal = palpites[player];
+
+      if (!pal) {
+        stats[player].semPalpite++;
+      } else {
+        const diff = Math.abs(+pal.casa - +pal.fora);
+        if (diff >= 3) stats[player].diff3mais++;
+
+        if (temRes) {
+          const tipo = classify(jogo.resultado, pal);
+
+          if (tipo === 'almost') stats[player].exactErrados++;
+
+          if (+pal.casa > +pal.fora && +jogo.resultado.casa < +jogo.resultado.fora) {
+            stats[player].peFrio++;
+          }
+
+          const pts = calcPts(jogo.resultado, pal);
+          if (pts && pts.pts === 0) {
+            stats[player].currentSeq = (stats[player].currentSeq || 0) + 1;
+            stats[player].maxSeqSemPontos = Math.max(stats[player].maxSeqSemPontos || 0, stats[player].currentSeq);
+          } else {
+            stats[player].currentSeq = 0;
+          }
+        }
+      }
+    });
+  });
+
+  // Maratonista da Lanterna
+  allPlayers.forEach(player => {
+    let count = 0;
+    Object.values(rankingPorDia).forEach(rankDia => {
+      if (rankDia[player] === Object.keys(rankDia).length) count++;
+    });
+    if (count >= 1) hall.maratonistaLanterna.push({player, count});
+  });
+
+  // Preenche Hall
+  allPlayers.forEach(p => {
+    const s = stats[p];
+    if (s.semPalpite >= 1)     hall.dormiuNoPonto.push({player: p, count: s.semPalpite});
+    if (s.exactErrados >= 1)   hall.profetaReverso.push({player: p, count: s.exactErrados});
+    if (s.peFrio >= 1)         hall.peFrio.push({player: p, count: s.peFrio});
+    if (s.maxSeqSemPontos >= 3) hall.investidorOi.push({player: p, count: s.maxSeqSemPontos});
+    if (s.diff3mais >= 2)      hall.apostadorCompulsivo.push({player: p, count: s.diff3mais});
+  });
+
+  // Ordena Top 3
+  Object.keys(hall).forEach(key => {
+    hall[key].sort((a, b) => b.count - a.count);
+    hall[key] = hall[key].slice(0, 3);
+  });
+
+  return hall;
+}
+
+function classify(real, pal) {
+  if (real?.casa == null || !pal) return null;
+  const rc = +real.casa, rf = +real.fora, pc = +pal.casa, pf = +pal.fora;
+  if ([rc, rf, pc, pf].some(isNaN)) return null;
+  if (rc === pc && rf === pf) return 'exact';
+  const pD = pc === pf, rD = rc === rf;
+  if (pD && !rD) return 'almost';
+  if (rD && !pD) return 'miss';
+  if (rD && pD)  return 'draw';
+  const rWC = rc > rf, pWC = pc > pf;
+  if (rWC !== pWC) return 'miss';
+  const wg = rWC ? rc : rf, pwg = pWC ? pc : pf;
+  if (pwg === wg) return 'vg';
+  if ((rc - rf) === (pc - pf)) return 'diff';
+  const lg = rWC ? rf : rc, plg = pWC ? pf : pc;
+  if (plg === lg) return 'lg';
+  return 'win';
+}
+
+function renderVergonha() {
+  const hall = computeHallDaVergonha();
+  let h = `<div class="sec-title">🤡 Hall da Vergonha</div>
+           <div style="color:var(--text2);font-size:13px;margin-bottom:18px">Os destaques negativos do bolão</div>`;
+
+  const categorias = [
+    { emoji: '🤡', title: 'Profeta Reverso',     key: 'profetaReverso',     desc: 'Mais palpites exatos errados' },
+    { emoji: '💀', title: 'Pé Frio',            key: 'peFrio',             desc: 'Mais vezes o time que escolheu perdeu' },
+    { emoji: '📉', title: 'Investidor da Oi',   key: 'investidorOi',       desc: 'Maior sequência sem pontuar' },
+    { emoji: '🎰', title: 'Apostador Compulsivo', key: 'apostadorCompulsivo', desc: 'Mais palpites com 3+ gols de diferença' },
+    { emoji: '🏃', title: 'Maratonista da Lanterna', key: 'maratonistaLanterna', desc: 'Mais dias em último lugar' },
+  ];
+
+  let temConteudo = false;
+
+  categorias.forEach(cat => {
+    const data = hall[cat.key];
+    if (!data || data.length === 0) return;
+
+    temConteudo = true;
+    h += `
+      <div class="vergonha-box">
+        <div class="vergonha-title">${cat.emoji} ${cat.title}</div>
+        <div class="vergonha-desc">${cat.desc}</div>
+        <div class="vergonha-list">
+    `;
+
+    data.forEach((item, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+      h += `
+        <div class="vergonha-item">
+          <span class="vergonha-pos">${medal}</span>
+          <span class="vergonha-name">${emo(item.player)} ${item.player}</span>
+          <span class="vergonha-count">${item.count}x</span>
+        </div>
+      `;
+    });
+
+    h += `</div></div>`;
+  });
+
+  if (!temConteudo) {
+    h += `<div class="empty">Ainda não há dados suficientes para o Hall da Vergonha.<br>Continue palpitando! 😂</div>`;
+  }
+
+  return h;
+}
 
 window.toggleAccordion = (id) => {
   const el = document.getElementById(id);
