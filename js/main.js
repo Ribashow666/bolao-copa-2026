@@ -1,6 +1,7 @@
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getDatabase, ref, onValue, set, update, push, get, runTransaction }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { BADGE_DEFS, RARITY_META, computeAchievements } from "./achievements.js";
 
 const FB_CONFIG = {
   apiKey:"AIzaSyCFS5qEkn3WmoXlWPHi7gw9ScywnrzrEAs",
@@ -574,11 +575,11 @@ function renderRanking() {
   const M=['🥇','🥈','🥉'], C=['gold','silver','bronze'];
   let h=`<div class="sec-title">🏆 Classificação</div><div class="podium-grid">`;
   sorted.slice(0,3).forEach(([n,p],i)=>{
-    h+=`<div class="podium-card ${C[i]}"><span class="p-medal">${M[i]}</span><div style="font-size:16px">${emo(n)}</div><div class="p-name">${n}</div><div class="p-pts">${p}</div><div class="p-lbl">pts</div></div>`;
+    h+=`<div class="podium-card ${C[i]}" style="cursor:pointer" onclick="showPlayerModal('${n}')"><span class="p-medal">${M[i]}</span><div style="font-size:16px">${emo(n)}</div><div class="p-name">${n}</div><div class="p-pts">${p}</div><div class="p-lbl">pts</div></div>`;
   });
   h+=`</div><div class="rank-list">`;
   sorted.slice(3).forEach(([n,p],i)=>{
-    h+=`<div class="rank-item"><span class="rank-pos">${i+4}º</span><span style="font-size:16px">${emo(n)}</span><span class="rank-name">${n}</span><div style="text-align:right"><div class="rank-pts">${p}</div><div style="font-size:10px;color:var(--text2)">pontos</div></div></div>`;
+    h+=`<div class="rank-item" style="cursor:pointer" onclick="showPlayerModal('${n}')"><span class="rank-pos">${i+4}º</span><span style="font-size:16px">${emo(n)}</span><span class="rank-name">${n}</span><div style="text-align:right"><div class="rank-pts">${p}</div><div style="font-size:10px;color:var(--text2)">pontos</div></div></div>`;
   });
   h+=`</div>`;
 
@@ -1075,6 +1076,60 @@ window.zerarTudo = async () => {
   await set(ref(db,'bolao/jogos'), {});
   await set(ref(db,'bolao/lastSync'), null);
   showToast('Dados zerados.');
+};
+
+// ════════════════════════════════════════════════════════════════
+// 🏆 Modal de Conquistas do Jogador
+// ════════════════════════════════════════════════════════════════
+window.showPlayerModal = (playerName) => {
+  const jogos = getJogos();
+  const rankingPorDia = computeRankingPorDia();
+  const allPalPlayers = new Set();
+  jogos.forEach(j => Object.keys(j.palpites||{}).forEach(n => allPalPlayers.add(n)));
+  const allPlayers = [...new Set([...KNOWN_PLAYERS, ...allPalPlayers])];
+
+  const earnedMap = computeAchievements(jogos, rankingPorDia, allPlayers);
+  const earned = earnedMap[playerName] || new Set();
+
+  const groups = ['ouro','prata','bronze','especial'];
+  let body = '';
+  groups.forEach(rarity => {
+    const meta = RARITY_META[rarity];
+    const defs = BADGE_DEFS.filter(b => b.rarity === rarity);
+    if (!defs.length) return;
+    body += `<div class="achv-group"><div class="achv-group-title" style="color:${meta.color}">${meta.icon} ${meta.label}</div><div class="achv-grid">`;
+    defs.forEach(b => {
+      const has = earned.has(b.id);
+      body += `<div class="achv-chip ${has?'':'locked'}" style="border-color:${meta.color}">
+        <span class="achv-chip-icon">${has?meta.icon:'🔒'}</span>
+        <div class="achv-chip-text">
+          <div class="achv-chip-name" style="color:${has?meta.color:'var(--text2)'}">${b.name}</div>
+          <div class="achv-chip-desc">${b.desc}</div>
+        </div>
+      </div>`;
+    });
+    body += `</div></div>`;
+  });
+  if (!earned.size) {
+    body += `<div class="achv-empty">Nenhuma conquista ainda — continue palpitando! ⚽</div>`;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'achv-overlay';
+  overlay.id = 'achv-overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) closePlayerModal(); };
+  overlay.innerHTML = `<div class="achv-modal">
+    <div class="achv-modal-hdr">
+      <div class="achv-modal-title">${emo(playerName)} ${playerName}</div>
+      <button class="achv-close-btn" onclick="closePlayerModal()">✕</button>
+    </div>
+    ${body}
+  </div>`;
+  document.body.appendChild(overlay);
+};
+
+window.closePlayerModal = () => {
+  document.getElementById('achv-overlay')?.remove();
 };
 
 startListening();
