@@ -48,7 +48,12 @@ async function hashPassword(pass) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass + 'bolao2026salt'));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
-const flag    = t => FLAGS[t] || '🏳';
+const flag    = t => {
+  if (FLAGS[t]) return FLAGS[t];
+  const nt = normTeam(t);
+  const found = Object.keys(FLAGS).find(k => normTeam(k) === nt);
+  return found ? FLAGS[found] : '🏳';
+};
 const emo     = n => EMOJIS[n] || '👤';
 const fmtDate = d => { if(!d) return ''; const [,m,day]=d.split('-'); return `${day}/${m}`; };
 const fmtTime = t => t ? t.substring(0,5) : '';
@@ -126,7 +131,36 @@ function diaExibicao(jogo) {
   return jogo.data;
 }
 
-// ── DEDUPLICAR jogos por casa+fora+data (mantém o com mais dados) ──
+// Normaliza nome de time pra comparar entre fontes diferentes (maiúsc., acento, espaço)
+const normTeam = s => (s||'').toLowerCase().trim()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/\s+/g,' ');
+
+// "Quanto de informação" um registro de jogo tem — usado pra decidir qual cópia manter
+function scoreJogo(j) {
+  return (j.resultado?.casa != null ? 2 : 0) + Object.keys(j.palpites||{}).length;
+}
+
+// Agrupa uma lista de jogos (com _id) por casa+fora, tolerando até 1 dia de diferença de data.
+// Reusado tanto pelo getJogos() (dedup em memória) quanto pelo admin (diagnóstico/limpeza no banco).
+function agruparJogos(lista) {
+  const groups = [];
+  for (const j of lista) {
+    const ct = normTeam(j.casa), ft = normTeam(j.fora);
+    const jDate = j.data ? new Date(j.data+'T00:00:00') : null;
+    const target = groups.find(g => {
+      if (g.ct !== ct || g.ft !== ft) return false;
+      if (!jDate || !g.date) return true;
+      return Math.abs((jDate - g.date) / 86400000) <= 1;
+    });
+    if (target) target.items.push(j);
+    else groups.push({ct, ft, date: jDate, items: [j]});
+  }
+  return groups;
+}
+
+// ── DEDUPLICAR jogos por casa+fora, tolerando até 1 dia de diferença de data
+//    (jogos vindos de fontes/fusos diferentes podem cair em datas vizinhas) ──
 function getJogos() {
   const all = Object.entries(dbData.jogos||{})
     .map(([id,j])=>({...j, _id:id}))
@@ -135,21 +169,17 @@ function getJogos() {
       return dd || ((a.hora||'')>(b.hora||'') ? 1 : -1);
     });
 
-  // Deduplicar: chave = casa+fora+data normalizado
-  const seen = new Map();
-  for (const j of all) {
-    const k = `${(j.casa||'').toLowerCase().trim()}|${(j.fora||'').toLowerCase().trim()}|${j.data||''}`;
-    if (!seen.has(k)) {
-      seen.set(k, j);
-    } else {
-      // Manter o que tem mais informação: resultado > palpites > status FT
-      const prev = seen.get(k);
-      const prevScore = (prev.resultado?.casa != null ? 2 : 0) + Object.keys(prev.palpites||{}).length;
-      const currScore = (j.resultado?.casa != null ? 2 : 0) + Object.keys(j.palpites||{}).length;
-      if (currScore > prevScore) seen.set(k, j);
-    }
-  }
-  return [...seen.values()];
+  return agruparJogos(all).map(g => {
+    let best = g.items[0], bestScore = scoreJogo(best);
+    g.items.slice(1).forEach(item => {
+      const s = scoreJogo(item);
+      if (s > bestScore) { best = item; bestScore = s; }
+    });
+    // Mescla palpites de todas as cópias do mesmo jogo, pra ninguém perder o voto
+    const palpitesMerged = {};
+    g.items.forEach(item => Object.assign(palpitesMerged, item.palpites||{}));
+    return {...best, palpites: palpitesMerged};
+  });
 }
 
 function computeRanking() {
@@ -428,7 +458,13 @@ async function syncFromApi(force=false) {
       const isLive = sinceKickoff >= 0 && sinceKickoff < 130*60000;
       const isDone = sinceKickoff >= 130*60000;
       if (isLive) liveCount++;
-      const hasScore = m.score1 != null && m.score2 != null;
+      // ── Checagem rígida: "" (string vazia) passa em "!= null" mas não é um placar real.
+      //    Isso é o que causou jogos futuros virarem "0x0 encerrado" (placeholder da fonte/scraper).
+      //    Também nunca aceitamos placar pra jogo cujo horário ainda não chegou.
+      const scoreOk = m.score1 !== null && m.score1 !== undefined && m.score1 !== '' &&
+                       m.score2 !== null && m.score2 !== undefined && m.score2 !== '' &&
+                       !isNaN(+m.score1) && !isNaN(+m.score2);
+      const hasScore = scoreOk && sinceKickoff >= 0;
       const status = isDone ? 'FT' : isLive ? '1H' : 'NS';
       return runTransaction(ref(db,`bolao/jogos/${fid}`), current => {
         const base = current || {};
@@ -976,10 +1012,19 @@ function renderAdmin() {
   }
   let h=`<div class="sec-title">⚙️ Admin</div>`;
   const ls = dbData.lastSync ? new Date(dbData.lastSync).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : 'nunca';
+  const hojeAdmin = todayBRT();
+  const futurosComResultado = getJogos().filter(j => j.data > hojeAdmin && j.resultado?.casa != null);
+  const jogosRawAdmin = Object.entries(dbData.jogos||{}).map(([id,j])=>({...j,_id:id}));
+  const gruposDuplicados = agruparJogos(jogosRawAdmin).filter(g => g.items.length > 1);
+  const totalCopiasExtra = gruposDuplicados.reduce((s,g)=>s+g.items.length-1, 0);
   h+=`<div class="admin-box"><div class="admin-box-title">🔄 Sincronização</div>
     <div style="font-size:12px;color:var(--text2);background:var(--surface2);border-radius:7px;padding:10px 12px;line-height:1.7"><strong style="color:var(--text)">Última sync:</strong> ${ls} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos (brutos):</strong> ${Object.keys(dbData.jogos||{}).length} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos (dedup):</strong> ${getJogos().length}</div>
+    ${futurosComResultado.length ? `<div style="font-size:12px;color:#f87171;background:#2a0000;border:1px solid #991b1b;border-radius:7px;padding:10px 12px;line-height:1.7;margin-top:8px">⚠️ <strong>${futurosComResultado.length} jogo(s) com data futura já têm resultado preenchido</strong> — provavelmente placar fantasma (placeholder). Use o botão abaixo pra limpar.</div>` : ''}
+    ${gruposDuplicados.length ? `<div style="font-size:12px;color:#fbbf24;background:#1a1800;border:1px solid #854d0e;border-radius:7px;padding:10px 12px;line-height:1.7;margin-top:8px">⚠️ <strong>${gruposDuplicados.length} jogo(s) com ${totalCopiasExtra} cópia(s) duplicada(s)</strong> no banco (provável resquício do scraper antigo). Use o botão abaixo pra mesclar palpites e remover as cópias extras.</div>` : ''}
     <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-sm" onclick="forcSync()">🔄 Sincronizar agora</button>
+      ${futurosComResultado.length ? `<button class="btn-danger" style="padding:7px 14px" onclick="limparResultadosFuturos()">🧹 Limpar Resultados Futuros (${futurosComResultado.length})</button>` : ''}
+      ${gruposDuplicados.length ? `<button class="btn-danger" style="padding:7px 14px" onclick="removerDuplicados()">🧹 Remover Duplicados (${totalCopiasExtra})</button>` : ''}
     </div></div>`;
 
   const semRes = getJogos().filter(j=>!['FT','AET','PEN'].includes(j.status||'NS') || j.resultado?.casa == null);
@@ -1028,6 +1073,37 @@ function renderAdmin() {
 }
 
 window.forcSync = async () => { showToast('Sincronizando...'); await syncFromApi(true); };
+window.limparResultadosFuturos = async () => {
+  const hoje = todayBRT();
+  const suspeitos = getJogos().filter(j => j.data > hoje && j.resultado?.casa != null);
+  if (!suspeitos.length) { showToast('Nenhum resultado futuro suspeito. ✅'); return; }
+  const ok = confirm(`Encontrados ${suspeitos.length} jogo(s) com data futura mas resultado já preenchido (provável placar fantasma). Limpar todos e reabrir pra palpite?`);
+  if (!ok) return;
+  for (const j of suspeitos) {
+    await update(ref(db, `bolao/jogos/${j._id}/resultado`), {casa:null, fora:null});
+    await update(ref(db, `bolao/jogos/${j._id}`), {status:'NS'});
+  }
+  showToast(`${suspeitos.length} resultado(s) futuro(s) limpo(s)! 🧹`);
+};
+window.removerDuplicados = async () => {
+  const jogosRaw = Object.entries(dbData.jogos||{}).map(([id,j])=>({...j,_id:id}));
+  const grupos = agruparJogos(jogosRaw).filter(g => g.items.length > 1);
+  if (!grupos.length) { showToast('Nenhum jogo duplicado encontrado. ✅'); return; }
+  const totalExtra = grupos.reduce((s,g)=>s+g.items.length-1, 0);
+  const ok = confirm(`Encontrados ${grupos.length} jogo(s) com ${totalExtra} cópia(s) duplicada(s). Mesclar palpites na cópia mais completa e apagar as demais? Essa ação não pode ser desfeita.`);
+  if (!ok) return;
+  for (const g of grupos) {
+    let best = g.items[0], bestScore = scoreJogo(best);
+    g.items.slice(1).forEach(item => { const s = scoreJogo(item); if (s > bestScore) { best = item; bestScore = s; } });
+    const palpitesMerged = {};
+    g.items.forEach(item => Object.assign(palpitesMerged, item.palpites||{}));
+    await update(ref(db, `bolao/jogos/${best._id}`), {palpites: palpitesMerged});
+    for (const item of g.items) {
+      if (item._id !== best._id) await set(ref(db, `bolao/jogos/${item._id}`), null);
+    }
+  }
+  showToast(`${totalExtra} jogo(s) duplicado(s) removido(s)! 🧹`);
+};
 window.salvarPalpite = async id => {
   const jogoEntry = Object.entries(dbData.jogos||{}).find(([k])=>k===id);
   if (jogoEntry && !jogoAberto({...jogoEntry[1], _id:jogoEntry[0]})) { showToast('⏰ Prazo encerrado para este jogo!', true); return; }
