@@ -19,7 +19,7 @@ const KNOWN_PLAYERS = ['Milho','Wly','Igor','Jucas','Wendel','Pedru','Vini','Mel
 const EMOJIS = {Milho:'🌽',Wly:'🦅',Igor:'🐺',Jucas:'🦁',Wendel:'⚡',Pedru:'🐉',Vini:'🐆',Melk:'🌊'};
 const FLAGS = {
   'Brazil':'🇧🇷','Argentina':'🇦🇷','France':'🇫🇷','Germany':'🇩🇪',
-  'England':'🏴','Spain':'🇪🇸','Portugal':'🇵🇹','Uruguay':'🇺🇾',
+  'England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Spain':'🇪🇸','Portugal':'🇵🇹','Uruguay':'🇺🇾',
   'Mexico':'🇲🇽','United States':'🇺🇸','Japan':'🇯🇵','Morocco':'🇲🇦',
   'Netherlands':'🇳🇱','Belgium':'🇧🇪','Croatia':'🇭🇷','Senegal':'🇸🇳',
   'Australia':'🇦🇺','South Korea':'🇰🇷','Colombia':'🇨🇴','Ecuador':'🇪🇨',
@@ -27,8 +27,8 @@ const FLAGS = {
   'Tunisia':'🇹🇳','Cameroon':'🇨🇲','Costa Rica':'🇨🇷','Saudi Arabia':'🇸🇦',
   'Iran':'🇮🇷','Serbia':'🇷🇸','Denmark':'🇩🇰','Norway':'🇳🇴',
   'Sweden':'🇸🇪','Italy':'🇮🇹','Chile':'🇨🇱','Paraguay':'🇵🇾',
-  'Bolivia':'🇧🇴','Venezuela':'🇻🇪','Peru':'🇵🇪','Scotland':'🏴',
-  'Wales':'🏴','Czech Republic':'🇨🇿','South Africa':'🇿🇦',
+  'Bolivia':'🇧🇴','Venezuela':'🇻🇪','Peru':'🇵🇪','Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  'Wales':'🏴󠁧󠁢󠁷󠁬󠁳󠁿','Czech Republic':'🇨🇿','South Africa':'🇿🇦',
   'Turkey':'🇹🇷','Ukraine':'🇺🇦','Austria':'🇦🇹','Greece':'🇬🇷',
   'Honduras':'🇭🇳','Panama':'🇵🇦','Jamaica':'🇯🇲','Algeria':'🇩🇿',
   'Egypt':'🇪🇬','Nigeria':'🇳🇬','Ivory Coast':'🇨🇮','New Zealand':'🇳🇿',
