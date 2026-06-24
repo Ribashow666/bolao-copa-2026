@@ -136,6 +136,27 @@ const normTeam = s => (s||'').toLowerCase().trim()
   .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
   .replace(/\s+/g,' ');
 
+// ── Aliases: mesma seleção, nomes diferentes entre fontes (API oficial FIFA vs nomes "comuns") ──
+// Causa raiz do bug: "Turkey" (cadastro manual/fonte antiga) x "Türkiye" (API openfootball)
+// não batem em normTeam(), então nunca são vistos como o mesmo jogo e a duplicata sempre volta.
+const TEAM_ALIASES = {
+  'turkey':'turkiye', 'turkiye':'turkiye',
+  'usa':'unitedstates', 'us':'unitedstates', 'united states':'unitedstates', 'united states of america':'unitedstates',
+  'south korea':'korearepublic', 'korea republic':'korearepublic', 'korea, republic of':'korearepublic',
+  'ivory coast':'cotedivoire', "cote d'ivoire":'cotedivoire', 'cote divoire':'cotedivoire',
+  'bosnia and herzegovina':'bosniaherzegovina', 'bosnia & herzegovina':'bosniaherzegovina', 'bosnia':'bosniaherzegovina',
+  'czech republic':'czechia', 'czechia':'czechia',
+  'cape verde':'capeverde', 'cabo verde':'capeverde',
+  'dr congo':'congodr', 'democratic republic of the congo':'congodr', 'congo dr':'congodr',
+  'north macedonia':'macedonia', 'macedonia':'macedonia',
+};
+
+// Chave canônica do time: resolve aliases por cima da normalização, pra unir times com nomes diferentes
+function canonTeam(name) {
+  const nt = normTeam(name);
+  return TEAM_ALIASES[nt] || nt.replace(/\s+/g, '');
+}
+
 // "Quanto de informação" um registro de jogo tem — usado pra decidir qual cópia manter
 function scoreJogo(j) {
   return (j.resultado?.casa != null ? 2 : 0) + Object.keys(j.palpites||{}).length;
@@ -146,7 +167,7 @@ function scoreJogo(j) {
 function agruparJogos(lista) {
   const groups = [];
   for (const j of lista) {
-    const ct = normTeam(j.casa), ft = normTeam(j.fora);
+    const ct = canonTeam(j.casa), ft = canonTeam(j.fora);
     const jDate = j.data ? new Date(j.data+'T00:00:00') : null;
     const target = groups.find(g => {
       if (g.ct !== ct || g.ft !== ft) return false;
@@ -157,6 +178,14 @@ function agruparJogos(lista) {
     else groups.push({ct, ft, date: jDate, items: [j]});
   }
   return groups;
+}
+
+// Fase "Copa do Mundo" é só um fallback genérico (quando a fonte não trouxe group/round).
+// Ao mesclar duplicatas, sempre preferimos a fase específica de qualquer cópia que a tenha.
+function bestFase(items) {
+  const generic = f => !f || f === 'Copa do Mundo';
+  const specific = items.find(it => !generic(it.fase));
+  return specific ? specific.fase : (items[0].fase || 'Copa do Mundo');
 }
 
 // ── DEDUPLICAR jogos por casa+fora, tolerando até 1 dia de diferença de data
@@ -178,7 +207,7 @@ function getJogos() {
     // Mescla palpites de todas as cópias do mesmo jogo, pra ninguém perder o voto
     const palpitesMerged = {};
     g.items.forEach(item => Object.assign(palpitesMerged, item.palpites||{}));
-    return {...best, palpites: palpitesMerged};
+    return {...best, fase: bestFase(g.items), palpites: palpitesMerged};
   });
 }
 
@@ -447,31 +476,56 @@ async function syncFromApi(force=false) {
     const validMatches = matches.filter(m => {
       const t1 = (m.team1||'').toLowerCase();
       const t2 = (m.team2||'').toLowerCase();
-      return !['winner','loser','path','qualifier','tbd','tba'].some(k => t1.includes(k)||t2.includes(k));
+      
+      // 1. Filtra palavras-chave de times não definidos
+      const temPlaceholder = ['winner','loser','path','qualifier','tbd','tba'].some(k => t1.includes(k)||t2.includes(k));
+      if (temPlaceholder) return false;
+
+      // 2. A REVOLUÇÃO: Se o jogo cair na fase genérica "Copa do Mundo", descarta!
+      const faseCalculada = parseFase(m.group, m.round);
+      if (faseCalculada === 'Copa do Mundo') return false;
+
+      return true;
     });
 
     const writes = validMatches.map(m => {
-      const fid = `of_${teamKey(m.team1)}_${teamKey(m.team2)}_${(m.date||'').replace(/-/g,'')}`;
+      // 1. Tenta achar se esse jogo já existe no nosso banco (dbData.jogos) para usar o ID correto
+      let fid = null;
+      
+      if (m.num != null) {
+        fid = `of_num_${m.num}`;
+      } else {
+        // Se não tem num, varre o banco procurando um jogo existente com os mesmos times
+        const matchInDb = Object.entries(dbData.jogos || {}).find(([id, j]) => {
+          return (
+            (canonTeam(j.casa) === canonTeam(m.team1) && canonTeam(j.fora) === canonTeam(m.team2)) ||
+            (canonTeam(j.casa) === canonTeam(m.team2) && canonTeam(j.fora) === canonTeam(m.team1))
+          );
+        });
+        
+        // Se achou no banco, usa o ID que já tá lá. Se não achou, gera o fallback por texto
+        fid = matchInDb ? matchInDb[0] : `of_${teamKey(m.team1)}_${teamKey(m.team2)}_${(m.date||'').replace(/-/g,'')}`;
+      }
+
       const {data, hora, kickoffUTC} = parseKickoffBRT(m.date, m.time);
       const fase = parseFase(m.group, m.round);
       const sinceKickoff = now - kickoffUTC;
       const isLive = sinceKickoff >= 0 && sinceKickoff < 130*60000;
       const isDone = sinceKickoff >= 130*60000;
       if (isLive) liveCount++;
-      // ── Checagem rígida: "" (string vazia) passa em "!= null" mas não é um placar real.
-      //    Isso é o que causou jogos futuros virarem "0x0 encerrado" (placeholder da fonte/scraper).
-      //    Também nunca aceitamos placar pra jogo cujo horário ainda não chegou.
+
       const scoreOk = m.score1 !== null && m.score1 !== undefined && m.score1 !== '' &&
                        m.score2 !== null && m.score2 !== undefined && m.score2 !== '' &&
                        !isNaN(+m.score1) && !isNaN(+m.score2);
       const hasScore = scoreOk && sinceKickoff >= 0;
       const status = isDone ? 'FT' : isLive ? '1H' : 'NS';
+
       return runTransaction(ref(db,`bolao/jogos/${fid}`), current => {
         const base = current || {};
         return {
           ...base,
           casa: m.team1, fora: m.team2,
-          data, hora, fase, status,
+          data, hora, fase, status, num: m.num ?? base.num ?? null,
           resultado: hasScore
             ? {casa: m.score1, fora: m.score2}
             : (base.resultado?.casa != null ? base.resultado : {casa:null, fora:null}),
@@ -1019,12 +1073,8 @@ function renderAdmin() {
   const totalCopiasExtra = gruposDuplicados.reduce((s,g)=>s+g.items.length-1, 0);
   h+=`<div class="admin-box"><div class="admin-box-title">🔄 Sincronização</div>
     <div style="font-size:12px;color:var(--text2);background:var(--surface2);border-radius:7px;padding:10px 12px;line-height:1.7"><strong style="color:var(--text)">Última sync:</strong> ${ls} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos (brutos):</strong> ${Object.keys(dbData.jogos||{}).length} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos (dedup):</strong> ${getJogos().length}</div>
-    ${futurosComResultado.length ? `<div style="font-size:12px;color:#f87171;background:#2a0000;border:1px solid #991b1b;border-radius:7px;padding:10px 12px;line-height:1.7;margin-top:8px">⚠️ <strong>${futurosComResultado.length} jogo(s) com data futura já têm resultado preenchido</strong> — provavelmente placar fantasma (placeholder). Use o botão abaixo pra limpar.</div>` : ''}
-    ${gruposDuplicados.length ? `<div style="font-size:12px;color:#fbbf24;background:#1a1800;border:1px solid #854d0e;border-radius:7px;padding:10px 12px;line-height:1.7;margin-top:8px">⚠️ <strong>${gruposDuplicados.length} jogo(s) com ${totalCopiasExtra} cópia(s) duplicada(s)</strong> no banco (provável resquício do scraper antigo). Use o botão abaixo pra mesclar palpites e remover as cópias extras.</div>` : ''}
     <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-sm" onclick="forcSync()">🔄 Sincronizar agora</button>
-      ${futurosComResultado.length ? `<button class="btn-danger" style="padding:7px 14px" onclick="limparResultadosFuturos()">🧹 Limpar Resultados Futuros (${futurosComResultado.length})</button>` : ''}
-      ${gruposDuplicados.length ? `<button class="btn-danger" style="padding:7px 14px" onclick="removerDuplicados()">🧹 Remover Duplicados (${totalCopiasExtra})</button>` : ''}
     </div></div>`;
 
   const semRes = getJogos().filter(j=>!['FT','AET','PEN'].includes(j.status||'NS') || j.resultado?.casa == null);
@@ -1097,7 +1147,7 @@ window.removerDuplicados = async () => {
     g.items.slice(1).forEach(item => { const s = scoreJogo(item); if (s > bestScore) { best = item; bestScore = s; } });
     const palpitesMerged = {};
     g.items.forEach(item => Object.assign(palpitesMerged, item.palpites||{}));
-    await update(ref(db, `bolao/jogos/${best._id}`), {palpites: palpitesMerged});
+    await update(ref(db, `bolao/jogos/${best._id}`), {palpites: palpitesMerged, fase: bestFase(g.items), casa: best.casa, fora: best.fora});
     for (const item of g.items) {
       if (item._id !== best._id) await set(ref(db, `bolao/jogos/${item._id}`), null);
     }
@@ -1159,6 +1209,46 @@ window.zerarTudo = async () => {
   await set(ref(db,'bolao/jogos'), {});
   await set(ref(db,'bolao/lastSync'), null);
   showToast('Dados zerados.');
+};
+
+window.EXTERMINAR_LIXO_ESPN = async () => {
+  showToast('Iniciando varredura pesada...');
+  
+  const jogosRaw = Object.entries(dbData.jogos || {}).map(([id, j]) => ({ ...j, _id: id }));
+  const lixoEspn = jogosRaw.filter(j => {
+    const t1 = (j.casa || '').toLowerCase();
+    const t2 = (j.fora || '').toLowerCase();
+    return ['winner', 'loser', 'path', 'qualifier', 'tbd', 'tba', 'group', 'place'].some(k => t1.includes(k) || t2.includes(k));
+  });
+
+  if (!lixoEspn.length) {
+    showToast('Nenhum nó fantasma da ESPN encontrado! 🎉');
+    return;
+  }
+
+  const jogosOficiais = jogosRaw.filter(j => j._id.startsWith('of_num_'));
+  let migrados = 0;
+
+  for (const jogoRuim of lixoEspn) {
+    // Tenta achar o irmão oficial dele (mesma data aproximada ou lógica)
+    // Se não achar por time, tenta cruzar pela data do jogo
+    const oficialCorrespondente = jogosOficiais.find(jOficial => {
+      return jOficial.data === jogoRuim.data && 
+             (jOficial.fase === jogoRuim.fase || jogoRuim.fase === 'Copa do Mundo');
+    });
+
+    // Se o lixo tinha palpites, joga pro oficial correspondente
+    if (oficialCorrespondente && jogoRuim.palpites && Object.keys(jogoRuim.palpites).length > 0) {
+      const palpitesAtualizados = { ...oficialCorrespondente.palpites, ...jogoRuim.palpites };
+      await update(ref(db, `bolao/jogos/${oficialCorrespondente._id}`), { palpites: palpitesAtualizados });
+      migrados++;
+    }
+
+    // DELETA O INTRUSO SEM DÓ
+    await set(ref(db, `bolao/jogos/${jogoRuim._id}`), null);
+  }
+
+  showToast(`Sucesso! ${lixoEspn.length} lixos limpos. Palpites salvos em ${migrados} jogo(s). 🔥`);
 };
 
 // ════════════════════════════════════════════════════════════════
