@@ -481,6 +481,10 @@ async function syncFromApi(force=false) {
       const temPlaceholder = ['winner','loser','path','qualifier','tbd','tba'].some(k => t1.includes(k)||t2.includes(k));
       if (temPlaceholder) return false;
 
+      // 1.b Filtra códigos de posição de chave ainda não resolvidos (ex: "1C", "2F", "3A/B/C/D/F")
+      const isBracketCode = s => /^\d+[a-z](\/[a-z])*$/i.test((s||'').trim());
+      if (isBracketCode(m.team1) || isBracketCode(m.team2)) return false;
+
       // 2. A REVOLUÇÃO: Se o jogo cair na fase genérica "Copa do Mundo", descarta!
       const faseCalculada = parseFase(m.group, m.round);
       if (faseCalculada === 'Copa do Mundo') return false;
@@ -1075,6 +1079,7 @@ function renderAdmin() {
     <div style="font-size:12px;color:var(--text2);background:var(--surface2);border-radius:7px;padding:10px 12px;line-height:1.7"><strong style="color:var(--text)">Última sync:</strong> ${ls} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos (brutos):</strong> ${Object.keys(dbData.jogos||{}).length} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos (dedup):</strong> ${getJogos().length}</div>
     <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-sm" onclick="forcSync()">🔄 Sincronizar agora</button>
+      <button class="btn-sm" onclick="limparPlaceholders()">🧹 Limpar códigos de chave (1C, 2F...)</button>
     </div></div>`;
 
   const semRes = getJogos().filter(j=>!['FT','AET','PEN'].includes(j.status||'NS') || j.resultado?.casa == null);
@@ -1153,6 +1158,33 @@ window.removerDuplicados = async () => {
     }
   }
   showToast(`${totalExtra} jogo(s) duplicado(s) removido(s)! 🧹`);
+};
+window.limparPlaceholders = async () => {
+  const isBracketCode = s => /^\d+[a-z](\/[a-z])*$/i.test((s||'').trim());
+  const jogosRaw = Object.entries(dbData.jogos||{}).map(([id,j])=>({...j,_id:id}));
+  const lixo = jogosRaw.filter(j => isBracketCode(j.casa) || isBracketCode(j.fora));
+
+  if (!lixo.length) { showToast('Nenhum jogo com código de chave (1C, 2F...) encontrado. ✅'); return; }
+
+  const ok = confirm(`Encontrados ${lixo.length} jogo(s) com placeholder de chave (ex: 2F, 1C). Apagar todos? Os palpites desses jogos, se houver, serão tentados migrar pro jogo real correspondente (mesma data/fase).`);
+  if (!ok) return;
+
+  const jogosReais = jogosRaw.filter(j => !isBracketCode(j.casa) && !isBracketCode(j.fora));
+  let migrados = 0;
+
+  for (const j of lixo) {
+    if (j.palpites && Object.keys(j.palpites).length) {
+      const correspondente = jogosReais.find(r => r.data === j.data && r.fase === j.fase);
+      if (correspondente) {
+        const palpitesMerged = { ...correspondente.palpites, ...j.palpites };
+        await update(ref(db, `bolao/jogos/${correspondente._id}`), { palpites: palpitesMerged });
+        migrados++;
+      }
+    }
+    await set(ref(db, `bolao/jogos/${j._id}`), null);
+  }
+
+  showToast(`${lixo.length} jogo(s) com código de chave removido(s). Palpites migrados em ${migrados}. 🧹`);
 };
 window.salvarPalpite = async id => {
   const jogoEntry = Object.entries(dbData.jogos||{}).find(([k])=>k===id);
