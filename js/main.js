@@ -82,10 +82,11 @@ const ptsLabel = t=>({exact:'Exato!',vg:'Venc+G✓',diff:'Venc+Dif',draw:'Emp✓
 function getMulti(fase) {
   if (!fase) return 1;
   const f = fase.toLowerCase();
-  if (f.includes('🏆') || (f.includes('final') && !f.includes('oitava') && !f.includes('quarta') && !f.includes('semi') && !f.includes('3'))) return 3;
+  if (f.includes('🏆') || (f.includes('final') && !f.includes('oitava') && !f.includes('quarta') && !f.includes('semi') && !f.includes('3') && !f.includes('32') && !f.includes('16'))) return 3;
   if (f.includes('semi')) return 2.5;
   if (f.includes('3º') || f.includes('3o')) return 2.5;
   if (f.includes('quarta')) return 2;
+  if (f.includes('32') || f.includes('16 avos')) return 1.25;
   if (f.includes('oitava')) return 1.5;
   return 1;
 }
