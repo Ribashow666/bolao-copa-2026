@@ -18,7 +18,6 @@ export const BADGE_DEFS = [
   { id: 'fiel_camisa',           name: 'Fiel à Camisa',           rarity: 'prata',    desc: 'Envie 50 palpites' },
   { id: 'sequencia_5',           name: 'Sequência de 5',          rarity: 'prata',    desc: 'Acerte o resultado em 5 jogos seguidos' },
   { id: 'cirurgiao',             name: 'Cirurgião',               rarity: 'prata',    desc: 'Acerte 5 placares exatos no total' },
-  { id: 'nao_fugiu',             name: 'Não Fugiu de Nenhuma',    rarity: 'prata',    desc: 'Palpite em 100% dos jogos da fase de grupos' },
   { id: 'apostou_contra_todos',  name: 'Apostou Contra Todos',    rarity: 'prata',    desc: 'Acerte o vencedor quando 4+ do grupo palpitaram diferente' },
   // 🥇 Ouro
   { id: 'vidente',               name: 'Vidente',                 rarity: 'ouro',     desc: 'Seja o 1º a acertar um placar exato na temporada' },
