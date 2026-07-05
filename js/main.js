@@ -43,6 +43,7 @@ let filterFase  = 'Todos';
 let dbData      = {jogos:{}, users:{}, lastSync:null};
 let syncTimer   = null;
 let countdownTimer = null;
+let palpiteDrafts = {}; // guarda o que o usuário digitou mas ainda não salvou (evita perder valor em re-render)
 
 async function hashPassword(pass) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass + 'bolao2026salt'));
@@ -400,7 +401,7 @@ function bootApp() {
   render();
   syncFromApi(true);
   clearInterval(countdownTimer);
-  countdownTimer = setInterval(()=>{ if(currentTab==='palpitar') render(); }, 30000);
+  countdownTimer = setInterval(()=>{ if(currentTab==='palpitar' && !isTypingInPalpite()) render(); }, 30000);
 }
 
 function updateAdminTab() {
@@ -418,12 +419,20 @@ function updateAdminTab() {
   }
 }
 
+// Evita que o Firebase (ou o timer de 30s) sobrescreva o input enquanto o usuário
+// ainda está digitando o palpite — causa raiz do "sumiu o número que eu digitei".
+function isTypingInPalpite() {
+  const ae = document.activeElement;
+  return currentTab === 'palpitar' && ae && ae.tagName === 'INPUT' &&
+         /^p[cf]_/.test(ae.id || '');
+}
+
 function startListening() {
   onValue(ref(db,'bolao'), snap=>{
     dbData = snap.val() || {jogos:{}, users:{}};
     if (!dbData.jogos) dbData.jogos={};
     if (!dbData.users) dbData.users={};
-    if (currentUser) render();
+    if (currentUser && !isTypingInPalpite()) render();
   });
   onValue(ref(db,'.info/connected'), snap=>{
     if (snap.val()===false) setSyncBar('offline','⚠️ Sem conexão — tentando reconectar...');
@@ -1026,9 +1035,13 @@ function renderPalpitar() {
         <div class="my-pal-section">
           <div class="my-pal-label">${emo(currentUser.username)} ${currentUser.username} — seu palpite</div>
           <div class="my-pal-row">
-            <input class="sc-in" type="number" min="0" max="20" placeholder="0" id="pc_${jogo._id}" value="${meu!=null?meu.casa:''}">
+            <input class="sc-in" type="number" min="0" max="20" placeholder="0" id="pc_${jogo._id}"
+              value="${palpiteDrafts[jogo._id]?.casa ?? (meu!=null?meu.casa:'')}"
+              oninput="onPalpiteDraft('${jogo._id}','casa',this.value)">
             <span class="sc-x">x</span>
-            <input class="sc-in" type="number" min="0" max="20" placeholder="0" id="pf_${jogo._id}" value="${meu!=null?meu.fora:''}">
+            <input class="sc-in" type="number" min="0" max="20" placeholder="0" id="pf_${jogo._id}"
+              value="${palpiteDrafts[jogo._id]?.fora ?? (meu!=null?meu.fora:'')}"
+              oninput="onPalpiteDraft('${jogo._id}','fora',this.value)">
             <button class="btn-salvar" onclick="salvarPalpite('${jogo._id}')">Salvar</button>
             ${tempo ? `<span class="countdown">⏳ ${tempo}</span>` : ''}
           </div>
@@ -1187,6 +1200,10 @@ window.limparPlaceholders = async () => {
 
   showToast(`${lixo.length} jogo(s) com código de chave removido(s). Palpites migrados em ${migrados}. 🧹`);
 };
+window.onPalpiteDraft = (id, lado, val) => {
+  palpiteDrafts[id] = palpiteDrafts[id] || {};
+  palpiteDrafts[id][lado] = val;
+};
 window.salvarPalpite = async id => {
   const jogoEntry = Object.entries(dbData.jogos||{}).find(([k])=>k===id);
   if (jogoEntry && !jogoAberto({...jogoEntry[1], _id:jogoEntry[0]})) { showToast('⏰ Prazo encerrado para este jogo!', true); return; }
@@ -1195,6 +1212,7 @@ window.salvarPalpite = async id => {
   if (c===''||f==='') { showToast('Preencha os dois placares!', true); return; }
   if (+c<0||+f<0||+c>20||+f>20) { showToast('Placar inválido!', true); return; }
   await update(ref(db, `bolao/jogos/${id}/palpites/${currentUser.username}`), {casa:+c, fora:+f});
+  delete palpiteDrafts[id]; // salvou, não precisa mais do rascunho
   showToast(`Palpite salvo! ${c}x${f} ✅`);
 };
 window.salvarRes = async id => {
