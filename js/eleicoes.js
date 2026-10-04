@@ -14,9 +14,9 @@ export const PTS = {
   PCT: [[1, 15], [2.5, 10], [5, 5]],  // erro máx. em p.p. na % do vencedor → pontos
 };
 
-// Fecha 08:00 (horário de Brasília/Recife) — quando as urnas abrem
+// Prazos (horário de Recife). 1º turno: aberto até 23:59 de 04/10. 2º turno: fecha 08:00 de 25/10.
 export const LOCK_DEFAULT = {
-  t1: '2026-10-04T08:00:00-03:00',
+  t1: '2026-10-04T23:59:00-03:00',
   t2: '2026-10-25T08:00:00-03:00',
 };
 
