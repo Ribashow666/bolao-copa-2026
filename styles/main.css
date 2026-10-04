@@ -18,7 +18,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .auth-logo-badge{width:56px;height:56px;background:var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 10px}
 .auth-title{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--gold);letter-spacing:2px}
 .auth-sub{font-size:12px;color:var(--text2);margin-top:2px}
-.auth-tabs{display:flex;background:var(--surface2);border-radius:8px;padding:3px;margin-bottom:20px;gap:3px}
+.auth-tabs{display:flex;background:var(--surfacea2);border-radius:8px;padding:3px;margin-bottom:20px;gap:3px}
 .auth-tab{flex:1;padding:8px;font-size:13px;font-weight:600;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--text2);transition:all .2s;font-family:'Inter',sans-serif}
 .auth-tab.active{background:var(--gold);color:#000}
 .form-group{margin-bottom:13px}
@@ -454,3 +454,39 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   color: #f87171;
   font-weight: 700;
 }
+/* ── Bolão Eleições 2026 ── */
+.el-sub{font-size:12px;color:var(--text2);margin:-8px 0 12px}
+.el-seg{display:flex;gap:4px;background:var(--surface2);border-radius:9px;padding:3px;margin-bottom:14px}
+.el-seg-btn{flex:1;padding:8px 2px;font-size:11px;font-weight:600;border:none;border-radius:7px;background:transparent;color:var(--text2);cursor:pointer;font-family:'Inter',sans-serif}
+.el-seg-btn.active{background:var(--gold);color:#000}
+.el-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+.el-card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.el-card-title{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--gold);letter-spacing:1.5px}
+.el-card-pts{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--text)}
+.el-round{background:var(--surface2);border-radius:9px;padding:12px;margin-bottom:10px}
+.el-round-hdr{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:11px;font-weight:700;color:var(--gold);letter-spacing:.5px}
+.el-lock{font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px}
+.el-lock.open{background:#0a2a0a;color:#4ade80;border:1px solid #166534}
+.el-lock.closed{background:#1a0a1a;color:#c084fc;border:1px solid #7e22ce}
+.el-field{margin-bottom:11px}
+.el-hint{font-size:11px;color:var(--text2);line-height:1.5;margin-top:4px}
+.el-saved{font-size:11px;color:#4ade80;margin-left:8px}
+.el-wait,.el-none{font-size:12px;color:var(--text2);padding:6px 0;line-height:1.5}
+.el-meu{font-size:13px;font-weight:600;margin-bottom:8px;line-height:1.5}
+.el-versus{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px;font-weight:700;font-size:13px;flex-wrap:wrap;text-align:center}
+.el-versus i{color:var(--gold);font-style:normal;font-family:'Bebas Neue',sans-serif;font-size:16px}
+.el-versus em{font-style:normal;color:var(--gold)}
+.el-bd-wrap{margin-top:4px}
+.el-bd{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)}
+.el-bd b{color:var(--gold)}
+.el-bd.total{border-bottom:none;font-weight:700;padding-top:7px}
+.el-gal-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px}
+.el-gal-nome{font-weight:700;min-width:84px}
+.el-gal-txt{flex:1;color:var(--text2);min-width:160px}
+.el-gal-pts{font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--gold)}
+.el-ta{width:100%;font-family:monospace;line-height:1.6;resize:vertical}
+.el-res-grid{display:grid;gap:6px}
+.el-res-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
+.el-res-row small{color:var(--text2)}
+.el-res-row input{width:90px;text-align:right}
+@media(max-width:400px){.tab-btn{font-size:10px;letter-spacing:.2px}}
