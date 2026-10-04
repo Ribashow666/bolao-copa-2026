@@ -2,6 +2,7 @@ import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/fir
 import { getDatabase, ref, onValue, set, update, push, get, runTransaction }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import { BADGE_DEFS, RARITY_META, computeAchievements } from "./achievements.js";
+import { initEleicoes } from "./eleicoes.js";
 
 const FB_CONFIG = {
   apiKey:"AIzaSyCFS5qEkn3WmoXlWPHi7gw9ScywnrzrEAs",
@@ -423,8 +424,10 @@ function updateAdminTab() {
 // ainda está digitando o palpite — causa raiz do "sumiu o número que eu digitei".
 function isTypingInPalpite() {
   const ae = document.activeElement;
-  return currentTab === 'palpitar' && ae && ae.tagName === 'INPUT' &&
-         /^p[cf]_/.test(ae.id || '');
+  if (!ae || !['INPUT','SELECT','TEXTAREA'].includes(ae.tagName)) return false;
+  if (currentTab === 'palpitar') return /^p[cf]_/.test(ae.id || '');
+  if (currentTab === 'eleicoes' || currentTab === 'admin') return /^el_/.test(ae.id || '');
+  return false;
 }
 
 function startListening() {
@@ -587,6 +590,7 @@ function render() {
   else if (currentTab === 'palpitar')  { el.innerHTML = renderPalpitar(); }
   else if (currentTab === 'admin')     { el.innerHTML = renderAdmin(); }
   else if (currentTab === 'vergonha')  { el.innerHTML = renderVergonha(); }
+  else if (currentTab === 'eleicoes')  { el.innerHTML = elx.renderEleicoes(); }
 }
 
 let evolucaoChart = null;
@@ -1138,6 +1142,7 @@ function renderAdmin() {
       <div class="form-group-admin full"><label class="form-label-admin">Confirmar Nova Senha</label><input class="form-input-admin" type="password" id="new-pass2" placeholder="repita"></div>
     </div>
     <button class="btn-sm" style="margin-top:10px" onclick="changePassword()">🔑 Alterar Senha</button></div>`;
+  h+=elx.renderEleicoesAdmin();
   return h;
 }
 
@@ -1539,3 +1544,11 @@ window.toggleAccordion = (id) => {
     icon.textContent = el.classList.contains('hidden') ? '▶' : '▼';
   }
 };
+
+// ── Bolão Eleições 2026 (jogo extra) ──
+const elx = initEleicoes({
+  db, ref, set, update,
+  getUser: () => currentUser,
+  getData: () => dbData,
+  showToast, rerender: render, emo
+});
