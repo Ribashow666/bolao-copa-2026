@@ -1,5 +1,5 @@
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, onValue, set, update, push, get, runTransaction }
+import { getDatabase, ref, onValue, set, update, push, get, runTransaction, query, limitToLast, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import { BADGE_DEFS, RARITY_META, computeAchievements } from "./achievements.js";
 import { initEleicoes } from "./eleicoes.js";
@@ -438,6 +438,7 @@ function bootApp() {
     }
   });
   updateAdminTab();
+  iniciarChat();
   ['ranking','jogos','palpitar','admin'].forEach(t=>{ const el=document.getElementById(`tab-${t}`); if(el) el.classList.toggle('active', t===currentTab); });
   render();
   // Sem force: a própria sync decide se está na hora (não repete busca à toa)
@@ -478,6 +479,7 @@ function isTypingInPalpite() {
   if (!ae || !['INPUT','SELECT','TEXTAREA'].includes(ae.tagName)) return false;
   if (currentTab === 'palpitar') return /^p[cf]_/.test(ae.id || '');
   if (currentTab === 'perfil')   return /^perf_/.test(ae.id || '');
+  if (currentTab === 'chat')     return ae.id === 'chat_input';
   if (currentTab === 'eleicoes' || currentTab === 'admin') return /^el_/.test(ae.id || '');
   return false;
 }
@@ -686,12 +688,23 @@ function render() {
   atualizarCabecalho(); // foto/emoji pode ter mudado no banco
   if (currentTab === 'ranking')   { el.innerHTML = renderRanking(); initEvolucaoChart(); }
   else if (currentTab === 'perfil')    { el.innerHTML = renderPerfil(); }
+  else if (currentTab === 'chat')      {
+    // Já está no chat (ex: mudou algo no bolão): só atualiza a lista, sem pular a rolagem
+    if (document.getElementById('chat-lista')) atualizarChatLista();
+    else {
+      el.innerHTML = renderChat();
+      const lista = document.getElementById('chat-lista');
+      lista.scrollTop = lista.scrollHeight;
+    }
+    marcarChatVisto();
+  }
   else if (currentTab === 'copa')      { el.innerHTML = renderCopa(); initEvolucaoChart(); }
   else if (currentTab === 'jogos')     { el.innerHTML = renderJogos(); }
   else if (currentTab === 'palpitar')  { el.innerHTML = renderPalpitar(); }
   else if (currentTab === 'admin')     { el.innerHTML = renderAdmin(); }
   else if (currentTab === 'vergonha')  { el.innerHTML = renderVergonha(); }
   else if (currentTab === 'eleicoes')  { el.innerHTML = elx.renderEleicoes(); }
+  atualizarBadgeChat();
 }
 
 let evolucaoChart = null;
@@ -872,6 +885,107 @@ function reduzirFoto(file, lado=128) {
     img.src = url;
   });
 }
+
+// ════════════════════════════════════════════════════════════════
+// 💬 Resenha: chat em tempo real
+// Fica em chat/mensagens, FORA de bolao/: o listener principal baixa bolao/ inteiro a cada mudança,
+// então cada mensagem faria todo mundo rebaixar jogos, fotos etc. Aqui só vêm as últimas 100.
+// ════════════════════════════════════════════════════════════════
+const CHAT_MAX_CHARS = 300;
+let chatMsgs = [];          // [{id, nome, key, texto, ts}] em ordem cronológica
+let chatIniciado = false;
+let chatDraft = '';         // texto digitado e não enviado (sobrevive a re-render)
+let chatUltimoEnvio = 0;
+
+function iniciarChat() {
+  if (chatIniciado) return;
+  chatIniciado = true;
+  onValue(query(ref(db, 'chat/mensagens'), limitToLast(100)), snap => {
+    chatMsgs = [];
+    snap.forEach(c => { chatMsgs.push({id: c.key, ...c.val()}); });
+    if (currentTab === 'chat') { marcarChatVisto(); atualizarChatLista(); }
+    atualizarBadgeChat();
+  });
+}
+
+// "Não lidas" ficam por aparelho (localStorage): é só um contador, não precisa ir pro banco
+const chatVisto = () => { try { return +localStorage.getItem('chat_visto') || 0; } catch { return 0; } };
+function marcarChatVisto() {
+  const ultimo = chatMsgs.at(-1)?.ts || 0;
+  try { if (ultimo > chatVisto()) localStorage.setItem('chat_visto', ultimo); } catch {}
+}
+function atualizarBadgeChat() {
+  const btn = document.getElementById('tab-chat');
+  if (!btn) return;
+  const n = currentTab === 'chat' ? 0 : chatMsgs.filter(m => m.ts > chatVisto() && m.nome !== currentUser?.username).length;
+  btn.innerHTML = `💬 Resenha${n ? ` <span class="chat-badge">${n > 99 ? '99+' : n}</span>` : ''}`;
+}
+
+function fmtHoraChat(ts) {
+  if (!ts) return '';
+  const {data, hora} = paraBRT(ts);
+  return data === todayBRT() ? hora : `${fmtDate(data)} ${hora}`;
+}
+
+function htmlChatLista() {
+  if (!chatMsgs.length) return `<div class="chat-vazio">Ninguém falou nada ainda. Começa a resenha! 😂</div>`;
+  return chatMsgs.map(m => {
+    const meu = m.nome === currentUser.username;
+    const podeApagar = meu || currentUser.isAdmin;
+    const foto = perfilDe(m.nome).foto;
+    return `<div class="chat-msg ${meu ? 'meu' : ''}">
+      <div class="chat-av">${fotoOk(foto) ? `<img src="${foto}" alt="">` : esc(emoRaw(m.nome))}</div>
+      <div class="chat-balao">
+        <div class="chat-nome">${esc(m.nome)} ${timeTag(m.nome)}</div>
+        <div class="chat-texto">${esc(m.texto)}</div>
+        <div class="chat-hora">${fmtHoraChat(m.ts)}${podeApagar ? ` · <button class="chat-del" onclick="apagarMsg('${m.id}')">apagar</button>` : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Atualiza só a lista, sem recriar o campo de texto (não perde o que está sendo digitado)
+function atualizarChatLista() {
+  const lista = document.getElementById('chat-lista');
+  if (!lista || !currentUser) return;
+  const noFim = lista.scrollHeight - lista.scrollTop - lista.clientHeight < 80;
+  lista.innerHTML = htmlChatLista();
+  if (noFim) lista.scrollTop = lista.scrollHeight; // só rola sozinho se a pessoa já estava lá embaixo
+}
+
+function renderChat() {
+  return `<div class="sec-title">💬 Resenha</div>
+    <div class="chat-box">
+      <div class="chat-lista" id="chat-lista">${htmlChatLista()}</div>
+      <div class="chat-input-row">
+        <input class="form-input-admin" id="chat_input" maxlength="${CHAT_MAX_CHARS}" placeholder="Manda a resenha..." autocomplete="off"
+          value="${esc(chatDraft)}" oninput="setChatDraft(this.value)" onkeydown="if(event.key==='Enter')enviarMsg()">
+        <button class="btn-salvar" onclick="enviarMsg()">Enviar</button>
+      </div>
+    </div>`;
+}
+window.setChatDraft = v => { chatDraft = v; };
+
+window.enviarMsg = async () => {
+  const input = document.getElementById('chat_input');
+  const texto = (input?.value || '').trim().slice(0, CHAT_MAX_CHARS);
+  if (!texto) return;
+  if (Date.now() - chatUltimoEnvio < 1000) { showToast('Calma, uma de cada vez! 😅', true); return; }
+  chatUltimoEnvio = Date.now();
+  input.value = ''; chatDraft = '';
+  try {
+    await push(ref(db, 'chat/mensagens'), {nome: currentUser.username, key: currentUser.key, texto, ts: serverTimestamp()});
+  } catch (e) {
+    console.error(e);
+    input.value = chatDraft = texto; // devolve o texto pra não perder
+    showToast('Não consegui enviar. Tenta de novo.', true);
+  }
+  input.focus();
+};
+window.apagarMsg = async id => {
+  if (!confirm('Apagar essa mensagem?')) return;
+  await set(ref(db, `chat/mensagens/${id}`), null);
+};
 
 function renderRanking() {
   const {sorted,exact}=computeRanking();

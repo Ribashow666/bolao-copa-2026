@@ -57,6 +57,24 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .time-grid{display:flex;gap:7px;flex-wrap:wrap}
 .time-opt{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text);padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer}
 .emoji-opt.active,.time-opt.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+/* Resenha (chat) */
+.chat-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;height:calc(100vh - 230px);min-height:340px}
+.chat-lista{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.chat-vazio{margin:auto;color:var(--text2);font-size:13px;text-align:center}
+.chat-msg{display:flex;align-items:flex-end;gap:7px;max-width:85%}
+.chat-msg.meu{align-self:flex-end;flex-direction:row-reverse}
+.chat-av{width:34px;height:34px;flex-shrink:0;border-radius:50%;overflow:hidden;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px}
+.chat-av img{width:100%;height:100%;object-fit:cover}
+.chat-balao{background:var(--surface2);border:1px solid var(--border);border-radius:12px 12px 12px 3px;padding:7px 10px;min-width:0}
+.chat-msg.meu .chat-balao{background:#1f4d2a;border-color:var(--gold);border-radius:12px 12px 3px 12px}
+.chat-nome{font-size:11px;font-weight:700;color:var(--gold);margin-bottom:2px}
+.chat-msg.meu .chat-nome{text-align:right}
+.chat-texto{font-size:14px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}
+.chat-hora{font-size:10px;color:var(--text2);margin-top:3px;text-align:right}
+.chat-del{background:none;border:none;color:var(--text2);font-size:10px;cursor:pointer;padding:0;text-decoration:underline}
+.chat-input-row{display:flex;gap:7px;padding:10px;border-top:1px solid var(--border)}
+.chat-input-row input{flex:1;min-width:0}
+.chat-badge{background:#ef4444;color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:3px}
 .sync-bar{text-align:center;padding:4px 10px;font-size:11px;font-weight:500;display:none}
 .sync-bar.show{display:block}
 .sync-bar.syncing{background:#0a2a0a;color:var(--text2)}
