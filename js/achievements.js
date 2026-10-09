@@ -16,7 +16,7 @@ export const BADGE_DEFS = [
   { id: 'sobreviveu_oitavas',    name: 'Sobreviveu às Oitavas',   rarity: 'bronze',   desc: 'Acerte 1 resultado do mata-mata (oitavas em diante)' },
   { id: 'estreante',             name: 'Estreante',               rarity: 'bronze',   desc: 'Palpite no primeiro jogo da temporada' },
   { id: 'chute_certeiro',        name: 'Chute Certeiro',          rarity: 'bronze',   desc: 'Acerte seu primeiro placar exato' },
-  { id: 'base_solida',           name: 'Base Sólida',             rarity: 'bronze',   desc: 'Acerte o resultado de 5 jogos da fase de grupos' },
+  { id: 'base_solida',           name: 'Base Sólida',             rarity: 'bronze',   desc: 'Acerte o resultado de 5 jogos de fase de grupos ou rodada' },
   { id: 'apostador_nato',        name: 'Apostador Nato',          rarity: 'bronze',   desc: 'Envie 25 palpites' },
   // 🥈 Prata
   { id: 'fiel_camisa',           name: 'Fiel à Camisa',           rarity: 'prata',    desc: 'Envie 50 palpites' },
@@ -34,7 +34,7 @@ export const BADGE_DEFS = [
   { id: 'sniper',                name: 'Sniper',                  rarity: 'ouro',     desc: 'Acerte 10 placares exatos no total' },
   { id: 'rodada_impecavel',      name: 'Rodada Impecável',        rarity: 'ouro',     desc: 'Acerte o resultado de todos os jogos de um mesmo dia (mín. 3 jogos)' },
   { id: 'vidente_final',         name: 'Vidente da Final',        rarity: 'ouro',     desc: 'Acerte o placar EXATO da Final' },
-  { id: 'fase_grupos_perfeita',  name: 'Fase de Grupos Perfeita', rarity: 'ouro',     desc: 'Acerte o resultado de todos os jogos de grupo que você palpitou (mín. 6)' },
+  { id: 'fase_grupos_perfeita',  name: 'Fase de Grupos Perfeita', rarity: 'ouro',     desc: 'Acerte o resultado de todos os jogos de grupo/rodada que você palpitou (mín. 6)' },
   // 🎭 Especiais
   { id: 'mao_fria',              name: 'Mão Fria',                rarity: 'especial', desc: 'Erre tudo em 5 jogos seguidos' },
   { id: 'zero_chances',          name: 'Zero Chances',            rarity: 'especial', desc: 'Fique em último no ranking por 7 dias seguidos' },
@@ -79,10 +79,11 @@ const RESULTADO_CORRETO = new Set(['exact', 'vg', 'diff', 'lg', 'win', 'draw']);
 const isResultadoCorreto = tipo => RESULTADO_CORRETO.has(tipo);
 
 const isMataMata = fase => /oitava|quarta|semi|3º|3o\b|final/i.test(fase || '');
-const isFinal     = fase => /final/i.test(fase || '') && !/semi/i.test(fase || '') && !/3º|3o\b/i.test(fase || '');
+const isFinal     = fase => /final/i.test(fase || '') && !/semi|oitava|quarta|avos/i.test(fase || '') && !/3º|3o\b/i.test(fase || '');
 const isSemi      = fase => /semi/i.test(fase || '');
 const isTerceiro  = fase => /3º|3o\b/i.test(fase || '');
-const isGrupo     = fase => /grupo/i.test(fase || '');
+// Jogo sem fase (pontos corridos, amistoso) ou de grupo/rodada conta como "fase de grupos"
+const isGrupo     = fase => !fase || /grupo|rodada/i.test(fase);
 
 // Mesma chave de ordenação cronológica usada no main.js (data + hora, ambos zero-padded)
 const kickoffKey = j => `${j.data || ''}T${j.hora || '00:00'}`;

@@ -38,11 +38,29 @@ const FLAGS = {
 };
 const PTS = {EXATO:25, VG:18, DIFF:15, DRAW:15, LG:12, WIN:10, ALMOST:4};
 
+// ── Bolão Muita Paz: Sport, Náutico, Santa Cruz e Seleção ──
+// Jogos e config ficam em bolao/mp/ — os jogos antigos da Copa (bolao/jogos) ficam guardados intactos.
+const MP = 'bolao/mp';
+// API pública (não oficial, sem chave) do site da ESPN. Cobre Série A/B, Copa do Brasil, Copa do Nordeste,
+// amistosos e Eliminatórias. NÃO cobre Série C/D nem Pernambucano: esses jogos entram pelo cadastro manual.
+const ESPN = 'https://site.api.espn.com/apis/site/v2/sports/soccer/all';
+const SYNC_COMPLETA_MS = 30*60000;  // agenda dos 4 times: 8 requisições a cada 30 min
+const SYNC_AO_VIVO_MS  = 2*60000;   // placar de jogo em andamento: 1 requisição por jogo a cada 2 min
+// IDs dos times na ESPN (conferidos em out/2026)
+const NOSSOS_TIMES = [
+  {key:'sport',     nome:'Sport',      espnId:7635},
+  {key:'nautico',   nome:'Náutico',    espnId:7633},
+  {key:'santacruz', nome:'Santa Cruz', espnId:4929},
+  {key:'brasil',    nome:'Brasil',     espnId:205},
+];
+
 let currentUser = null;
 let currentTab  = 'ranking';
 let filterFase  = 'Todos';
-let dbData      = {jogos:{}, users:{}, lastSync:null};
+let dbData      = {jogos:{}, users:{}, lastSync:null, config:{}};
 let syncTimer   = null;
+let primeiraCarga = false;
+let modoCopa    = false; // true na aba "Copa 2026" (arquivo do bolão da Copa, só leitura)
 let countdownTimer = null;
 let palpiteDrafts = {}; // guarda o que o usuário digitou mas ainda não salvou (evita perder valor em re-render)
 
@@ -54,8 +72,12 @@ const flag    = t => {
   if (FLAGS[t]) return FLAGS[t];
   const nt = normTeam(t);
   const found = Object.keys(FLAGS).find(k => normTeam(k) === nt);
-  return found ? FLAGS[found] : '🏳';
+  return found ? FLAGS[found] : '⚽';
 };
+// Escudo do clube (logo da API) quando tiver; senão bandeira/emoji
+const escudo  = (nome, logo, cls='crest') => logo ? `<img class="${cls}" src="${logo}" alt="" loading="lazy">` : flag(nome);
+const competicaoDe = j => j.competicao || j.fase || 'Outros';
+const rotulo  = j => [j.competicao, j.fase].filter(Boolean).join(' · ');
 const emo     = n => EMOJIS[n] || '👤';
 const fmtDate = d => { if(!d) return ''; const [,m,day]=d.split('-'); return `${day}/${m}`; };
 const fmtTime = t => t ? t.substring(0,5) : '';
@@ -81,15 +103,17 @@ function calcPts(real, pal) {
 const ptsClass = t=>({exact:'pts-exact',vg:'pts-vg',diff:'pts-diff',draw:'pts-draw',lg:'pts-lg',win:'pts-win',almost:'pts-almost',miss:'pts-zero'}[t]||'pts-zero');
 const ptsLabel = t=>({exact:'Exato!',vg:'Venc+G✓',diff:'Venc+Dif',draw:'Emp✓',lg:'Venc+Gl',win:'Venc✓',almost:'~Emp',miss:'—'}[t]||'—');
 
+// Multiplicador só pro mata-mata. Checa por palavra-chave (não por número), senão "Rodada 32" viraria ×1,25.
 function getMulti(fase) {
   if (!fase) return 1;
   const f = fase.toLowerCase();
-  if (f.includes('🏆') || (f.includes('final') && !f.includes('oitava') && !f.includes('quarta') && !f.includes('semi') && !f.includes('3') && !f.includes('32') && !f.includes('16'))) return 3;
   if (f.includes('semi')) return 2.5;
-  if (f.includes('3º') || f.includes('3o')) return 2.5;
+  if (f.includes('3º lugar')) return 2.5;
   if (f.includes('quarta')) return 2;
-  if (f.includes('32') || f.includes('16 avos')) return 1.25;
+  // "Oitavas de 32" = nome antigo do mata-mata de 32 da Copa: tem que continuar ×1,25 pro ranking da Copa não mudar
+  if (f.includes('16 avos') || f.includes('oitavas de 32')) return 1.25;
   if (f.includes('oitava')) return 1.5;
+  if (f.includes('🏆') || /\bfinal\b/.test(f)) return 3;
   return 1;
 }
 
@@ -188,13 +212,14 @@ function agruparJogos(lista) {
 function bestFase(items) {
   const generic = f => !f || f === 'Copa do Mundo';
   const specific = items.find(it => !generic(it.fase));
-  return specific ? specific.fase : (items[0].fase || 'Copa do Mundo');
+  return specific ? specific.fase : (items[0].fase || '');
 }
 
 // ── DEDUPLICAR jogos por casa+fora, tolerando até 1 dia de diferença de data
 //    (jogos vindos de fontes/fusos diferentes podem cair em datas vizinhas) ──
 function getJogos() {
-  const all = Object.entries(dbData.jogos||{})
+  // Aba "Copa 2026": mesmo cálculo de ranking/jogos, mas lendo o arquivo da Copa (bolao/jogos)
+  const all = Object.entries((modoCopa ? dbData.copaJogos : dbData.jogos)||{})
     .map(([id,j])=>({...j, _id:id}))
     .sort((a,b)=>{
       const dd = a.data>b.data ? 1 : a.data<b.data ? -1 : 0;
@@ -373,7 +398,7 @@ window.doRegister = async () => {
   finally { btn.disabled=false; btn.textContent='Criar Conta'; }
 };
 window.doLogout = () => {
-  currentUser=null; localStorage.removeItem('bolao_session'); clearInterval(countdownTimer);
+  currentUser=null; localStorage.removeItem('bolao_session'); clearInterval(countdownTimer); clearInterval(syncTimer);
   document.getElementById('app').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
   clearAuthErrors();
@@ -400,7 +425,10 @@ function bootApp() {
   updateAdminTab();
   ['ranking','jogos','palpitar','admin'].forEach(t=>{ const el=document.getElementById(`tab-${t}`); if(el) el.classList.toggle('active', t===currentTab); });
   render();
-  syncFromApi(true);
+  // Sem force: a própria sync decide se está na hora (não repete busca à toa)
+  syncFromApi(false);
+  clearInterval(syncTimer);
+  syncTimer = setInterval(()=>syncFromApi(false), 60000); // checagem barata: só busca quando está na hora
   clearInterval(countdownTimer);
   countdownTimer = setInterval(()=>{ if(currentTab==='palpitar' && !isTypingInPalpite()) render(); }, 30000);
 }
@@ -432,144 +460,189 @@ function isTypingInPalpite() {
 
 function startListening() {
   onValue(ref(db,'bolao'), snap=>{
-    dbData = snap.val() || {jogos:{}, users:{}};
-    if (!dbData.jogos) dbData.jogos={};
+    const raw = snap.val() || {};
+    // Usuários e eleições continuam em bolao/; jogos, sync e config do bolão vêm de bolao/mp/
+    dbData = {...raw, jogos: raw.mp?.jogos || {}, lastSync: raw.mp?.lastSync || null,
+              lastLiveSync: raw.mp?.lastLiveSync || null, config: raw.mp?.config || {},
+              copaJogos: raw.jogos || {}};
     if (!dbData.users) dbData.users={};
+    // Primeira carga do banco: agora já dá pra saber se a sync está atrasada
+    if (!primeiraCarga) { primeiraCarga = true; if (currentUser) syncFromApi(false); }
     if (currentUser && !isTypingInPalpite()) render();
   });
+  // O Firebase sempre manda "false" ao abrir a página, antes de conectar: só avisa se cair depois de ter conectado
+  let jaConectou = false;
   onValue(ref(db,'.info/connected'), snap=>{
-    if (snap.val()===false) setSyncBar('offline','⚠️ Sem conexão — tentando reconectar...');
-    else if (currentUser) setSyncBar('','');
+    const bar = document.getElementById('sync-bar');
+    if (snap.val()===true) {
+      jaConectou = true;
+      if (bar.classList.contains('offline')) setSyncBar('','');
+    } else if (jaConectou) setSyncBar('offline','⚠️ Sem conexão — tentando reconectar...');
   });
 }
 
-function parseKickoffBRT(dateStr, timeStr) {
-  const [timePart, tzPart] = (timeStr||'00:00 UTC+0').split(' ');
-  const [hh, mm] = timePart.split(':').map(Number);
-  const tzOffset = parseInt((tzPart||'UTC+0').replace('UTC','') || '0');
-  const [y, mo, d] = dateStr.split('-').map(Number);
-  const kickoffUTC = Date.UTC(y, mo-1, d, hh - tzOffset, mm, 0);
-  const brtD = new Date(kickoffUTC - 3*3600000);
-  return { data: brtD.toISOString().substring(0,10), hora: brtD.toISOString().substring(11,16), kickoffUTC };
+// Timestamp → data/hora em BRT (UTC-3)
+function paraBRT(ts) {
+  const d = new Date(ts - 3*3600000);
+  return { data: d.toISOString().substring(0,10), hora: d.toISOString().substring(11,16) };
 }
 
-function parseFase(group, round) {
-  if (group) return group.replace('Group ','Grupo ');
-  if (!round) return 'Copa do Mundo';
-  const r = round.toLowerCase();
-  if (r.includes('round of 32'))  return 'Oitavas de 32';
-  if (r.includes('round of 16'))  return 'Oitavas de Final';
-  if (r.includes('quarter'))      return 'Quartas de Final';
-  if (r.includes('semi'))         return 'Semifinais';
-  if (r.includes('3rd')||r.includes('third')) return '3º Lugar';
-  if (r.includes('final'))        return '🏆 Final';
-  return round;
+// Nome da competição em português. A ESPN manda "2026 Brasileiro Serie B", "2026 International Friendly"...
+function nomeCompeticao(nome) {
+  const n = (nome||'').replace(/^\d{4}\s+/, '').trim();
+  const l = n.toLowerCase();
+  const serie = l.match(/brasileir\w* serie ([a-d])/);
+  if (serie)                         return `Brasileirão Série ${serie[1].toUpperCase()}`;
+  if (l.includes('copa do brasil'))  return 'Copa do Brasil';
+  if (l.includes('nordeste'))        return 'Copa do Nordeste';
+  if (l.includes('pernambucano'))    return 'Pernambucano';
+  if (l.includes('libertadores'))    return 'Libertadores';
+  if (l.includes('sudamericana'))    return 'Sul-Americana';
+  if (l.includes('qualifying'))      return 'Eliminatórias';
+  if (l.includes('friendly'))        return 'Amistoso';
+  if (l.includes('copa am'))         return 'Copa América';
+  if (l.includes('world cup'))       return 'Copa do Mundo';
+  return n || 'Outros';
 }
 
-// Normaliza nome de time para chave estável de dedup no Firebase
-function teamKey(name) {
-  return (name||'').toLowerCase().trim()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .replace(/\s+/g,'').replace(/[^a-z0-9]/g,'');
+// Fase em português. Em pontos corridos a ESPN repete o nome da liga no lugar da fase → sem fase.
+// "Third Round" da Copa do Brasil é a 3ª fase, não disputa de 3º lugar.
+const ORDINAIS = {first:1, second:2, third:3, fourth:4, fifth:5, sixth:6};
+function nomeFase(fase, liga) {
+  const r = (fase||'').toLowerCase().trim();
+  if (!r || r === (liga||'').toLowerCase().trim()) return '';
+  if (r.includes('group'))         return 'Fase de Grupos';
+  if (r.includes('round of 32'))   return '16 avos de Final';
+  if (r.includes('round of 16'))   return 'Oitavas de Final';
+  if (r.includes('quarter'))       return 'Quartas de Final';
+  if (r.includes('semi'))          return 'Semifinal';
+  if (r.includes('3rd') || r.includes('third place')) return 'Disputa de 3º Lugar';
+  if (/^finals?$/.test(r))         return '🏆 Final';
+  const ord = r.match(/^(first|second|third|fourth|fifth|sixth) round/);
+  if (ord) return `${ORDINAIS[ord[1]]}ª Fase`;
+  return fase;
 }
 
+// Status da ESPN → códigos que o resto do app já usa (NS, 1H, HT, 2H, FT, AET, PEN...)
+function statusEspn(t) {
+  const n = t?.name || '';
+  if (n.includes('POSTPONED')) return 'PST';
+  if (n.includes('CANCELED') || n.includes('ABANDONED')) return 'CANC';
+  if (t?.state === 'pre') return 'NS';
+  if (t?.state === 'in') {
+    if (n.includes('HALFTIME')) return 'HT';
+    if (n.includes('SHOOTOUT')) return 'P';
+    if (n.includes('OVERTIME') || n.includes('EXTRA')) return 'ET';
+    if (n.includes('SECOND')) return '2H';
+    return '1H';
+  }
+  if (n.includes('PEN')) return 'PEN';
+  if (n.includes('AET')) return 'AET';
+  return 'FT';
+}
+
+// Placar sem pênaltis (com prorrogação, se houve). No schedule o score vem como objeto; no summary, como string.
+function placarEspn(competidores, status) {
+  if (['NS','PST','CANC'].includes(status)) return null;
+  const gols = lado => {
+    const s = competidores.find(c => c.homeAway === lado)?.score;
+    const v = typeof s === 'object' ? s?.value : s;
+    return v === '' || v == null || isNaN(+v) ? null : +v;
+  };
+  const casa = gols('home'), fora = gols('away');
+  return casa == null || fora == null ? null : {casa, fora};
+}
+
+async function espnGet(path) {
+  const resp = await fetch(ESPN + path);
+  if (!resp.ok) throw new Error(`ESPN HTTP ${resp.status}`);
+  return resp.json();
+}
+
+function eventoParaJogo(ev) {
+  const nossos = Object.fromEntries(NOSSOS_TIMES.map(t => [String(t.espnId), t.nome]));
+  const comp = ev.competitions?.[0] || {};
+  const lado = h => comp.competitors?.find(c => c.homeAway === h) || {};
+  const nome = c => nossos[c.team?.id] || c.team?.displayName || '?';
+  const kickoff = Date.parse(ev.date);
+  const status = statusEspn(comp.status?.type);
+  const liga = ev.season?.displayName || ev.league?.name || '';
+  return {
+    espnId: ev.id, kickoff, ...paraBRT(kickoff),
+    casa: nome(lado('home')), fora: nome(lado('away')),
+    logoCasa: lado('home').team?.logos?.[0]?.href || null, logoFora: lado('away').team?.logos?.[0]?.href || null,
+    competicao: nomeCompeticao(liga), fase: nomeFase(ev.seasonType?.name, liga),
+    status, resultado: placarEspn(comp.competitors || [], status),
+  };
+}
+
+function gravarJogo(j) {
+  return runTransaction(ref(db, `${MP}/jogos/espn_${j.espnId}`), atual => {
+    const base = atual || {};
+    // ESPN ainda sem placar mas o admin já lançou à mão: mantém o resultado e o status do admin
+    const manual = !j.resultado && base.resultado?.casa != null;
+    return {
+      ...base, ...j,
+      resultado: j.resultado || base.resultado || {casa:null, fora:null},
+      status: manual ? base.status : j.status,
+      palpites: base.palpites || {},
+    };
+  });
+}
+
+const STATUS_FIM = ['FT','AET','PEN','CANC','PST'];
+const STATUS_AO_VIVO = ['1H','HT','2H','ET','BT','P','INT'];
+
+// Duas buscas: agenda dos 4 times (a cada 30 min) e placar dos jogos em andamento (a cada 2 min).
+// Os horários ficam no banco, então vários celulares abertos não repetem a mesma busca.
 async function syncFromApi(force=false) {
-  const now=Date.now(), last=dbData.lastSync||0;
-  if (!force && (now-last)<120000) return;
-  setSyncBar('syncing','🔄 Buscando jogos da Copa...');
+  const now = Date.now();
+  const emAndamento = Object.values(dbData.jogos).filter(j =>
+    j.espnId && !STATUS_FIM.includes(j.status) && now >= j.kickoff - 5*60000 && now < j.kickoff + 180*60000);
+  const completa = force || now - (dbData.lastSync||0) > SYNC_COMPLETA_MS;
+  const aoVivo   = !completa && emAndamento.length && now - (dbData.lastLiveSync||0) > SYNC_AO_VIVO_MS;
+  if (!completa && !aoVivo) return;
+
+  const campo = completa ? 'lastSync' : 'lastLiveSync';
+  await set(ref(db, `${MP}/${campo}`), now); // marca antes de buscar, pra outro celular não repetir
+  if (completa) setSyncBar('syncing','🔄 Buscando jogos...');
   try {
-    const URL = 'https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json';
-    const resp = await fetch(URL);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const json = await resp.json();
-    const matches = json.matches || [];
-    if (!matches.length) { setSyncBar('ok','✓ Sem jogos disponíveis ainda'); setTimeout(()=>setSyncBar('',''),5000); return; }
-
-    let liveCount=0;
-    const validMatches = matches.filter(m => {
-      const t1 = (m.team1||'').toLowerCase();
-      const t2 = (m.team2||'').toLowerCase();
-      
-      // 1. Filtra palavras-chave de times não definidos
-      const temPlaceholder = ['winner','loser','path','qualifier','tbd','tba'].some(k => t1.includes(k)||t2.includes(k));
-      if (temPlaceholder) return false;
-
-      // 1.b Filtra códigos de posição de chave ainda não resolvidos (ex: "1C", "2F", "3A/B/C/D/F")
-      const isBracketCode = s => /^\d+[a-z](\/[a-z])*$/i.test((s||'').trim());
-      if (isBracketCode(m.team1) || isBracketCode(m.team2)) return false;
-
-      // 2. A REVOLUÇÃO: Se o jogo cair na fase genérica "Copa do Mundo", descarta!
-      const faseCalculada = parseFase(m.group, m.round);
-      if (faseCalculada === 'Copa do Mundo') return false;
-
-      return true;
-    });
-
-    const writes = validMatches.map(m => {
-      // 1. Tenta achar se esse jogo já existe no nosso banco (dbData.jogos) para usar o ID correto
-      let fid = null;
-      
-      if (m.num != null) {
-        fid = `of_num_${m.num}`;
-      } else {
-        // Se não tem num, varre o banco procurando um jogo existente com os mesmos times
-        const matchInDb = Object.entries(dbData.jogos || {}).find(([id, j]) => {
-          return (
-            (canonTeam(j.casa) === canonTeam(m.team1) && canonTeam(j.fora) === canonTeam(m.team2)) ||
-            (canonTeam(j.casa) === canonTeam(m.team2) && canonTeam(j.fora) === canonTeam(m.team1))
-          );
-        });
-        
-        // Se achou no banco, usa o ID que já tá lá. Se não achou, gera o fallback por texto
-        fid = matchInDb ? matchInDb[0] : `of_${teamKey(m.team1)}_${teamKey(m.team2)}_${(m.date||'').replace(/-/g,'')}`;
-      }
-
-      const {data, hora, kickoffUTC} = parseKickoffBRT(m.date, m.time);
-      const fase = parseFase(m.group, m.round);
-      const sinceKickoff = now - kickoffUTC;
-      const isLive = sinceKickoff >= 0 && sinceKickoff < 130*60000;
-      const isDone = sinceKickoff >= 130*60000;
-      if (isLive) liveCount++;
-
-      const scoreOk = m.score1 !== null && m.score1 !== undefined && m.score1 !== '' &&
-                       m.score2 !== null && m.score2 !== undefined && m.score2 !== '' &&
-                       !isNaN(+m.score1) && !isNaN(+m.score2);
-      const hasScore = scoreOk && sinceKickoff >= 0;
-      const status = isDone ? 'FT' : isLive ? '1H' : 'NS';
-
-      return runTransaction(ref(db,`bolao/jogos/${fid}`), current => {
-        const base = current || {};
-        return {
-          ...base,
-          casa: m.team1, fora: m.team2,
-          data, hora, fase, status, num: m.num ?? base.num ?? null,
-          resultado: hasScore
-            ? {casa: m.score1, fora: m.score2}
-            : (base.resultado?.casa != null ? base.resultado : {casa:null, fora:null}),
-          palpites: base.palpites || {},
-        };
-      });
-    });
-
-    await Promise.all(writes);
-    await set(ref(db,'bolao/lastSync'), now);
-    clearInterval(syncTimer);
-    if (liveCount>0) {
-      setSyncBar('live',`🔴 ${liveCount} jogo(s) ao vivo — atualizando a cada 2 min`);
-      syncTimer=setInterval(()=>syncFromApi(true), 120000);
+    let jogos;
+    if (completa) {
+      const inicio = dbData.config.inicio || now;
+      if (!dbData.config.inicio) await set(ref(db, `${MP}/config/inicio`), inicio);
+      // Sem "fixture=true" vêm os jogos já disputados/em andamento; com ele, os próximos
+      const urls = NOSSOS_TIMES.flatMap(t => [`/teams/${t.espnId}/schedule`, `/teams/${t.espnId}/schedule?fixture=true`]);
+      const porId = {}; // clássico (ex: Sport x Náutico) vem na lista dos dois times
+      (await Promise.all(urls.map(espnGet))).forEach(r => (r.events||[]).forEach(ev => porId[ev.id] = ev));
+      const jaTemos = new Set(Object.values(dbData.jogos).map(j => j.espnId));
+      // Só entra jogo a partir do início do bolão (+ os que já estão no banco, pra atualizar placar)
+      jogos = Object.values(porId)
+        .filter(ev => jaTemos.has(ev.id) || Date.parse(ev.date) >= inicio - 86400000)
+        .map(eventoParaJogo);
     } else {
-      setSyncBar('ok',`✓ ${validMatches.length} jogos carregados`);
-      setTimeout(()=>setSyncBar('',''), 4000);
-      syncTimer=setInterval(()=>syncFromApi(false), 300000);
+      // Ao vivo: só placar e status mudam; o resto do jogo continua igual
+      jogos = await Promise.all(emAndamento.map(async j => {
+        const comp = (await espnGet(`/summary?event=${j.espnId}`)).header?.competitions?.[0] || {};
+        const status = statusEspn(comp.status?.type);
+        return {...j, status, resultado: placarEspn(comp.competitors || [], status)};
+      }));
     }
+    await Promise.all(jogos.map(gravarJogo));
+    const liveCount = jogos.filter(j => STATUS_AO_VIVO.includes(j.status)).length;
+    if (liveCount) setSyncBar('live', `🔴 ${liveCount} jogo(s) ao vivo — placar atualiza a cada 2 min`);
+    else if (completa) { setSyncBar('ok', `✓ ${jogos.length} jogos carregados`); setTimeout(()=>setSyncBar('',''), 4000); }
+    else setSyncBar('','');
   } catch(e) {
-    console.error('Sync error:',e);
-    setSyncBar('offline','⚠️ Erro ao buscar jogos. Adicione manualmente no Admin.');
+    console.error('Sync error:', e);
+    // Não volta o horário: se a ESPN estiver fora, tenta de novo no próximo ciclo (ou pelo botão do Admin)
+    setSyncBar('offline', `⚠️ Erro ao buscar jogos: ${e.message}`);
     setTimeout(()=>setSyncBar('',''), 8000);
   }
 }
 
 window.showTab = tab => {
+  if (tab !== currentTab) filterFase = 'Todos'; // filtros da Copa e do bolão são diferentes
   currentTab = tab;
   
   // Atualiza visual de TODAS as abas
@@ -585,7 +658,9 @@ function render() {
   const el = document.getElementById('content');
   if (!el) return;
 
+  modoCopa = currentTab === 'copa';
   if (currentTab === 'ranking')   { el.innerHTML = renderRanking(); initEvolucaoChart(); }
+  else if (currentTab === 'copa')      { el.innerHTML = renderCopa(); initEvolucaoChart(); }
   else if (currentTab === 'jogos')     { el.innerHTML = renderJogos(); }
   else if (currentTab === 'palpitar')  { el.innerHTML = renderPalpitar(); }
   else if (currentTab === 'admin')     { el.innerHTML = renderAdmin(); }
@@ -685,6 +760,15 @@ function initEvolucaoChart() {
   });
 }
 
+// Arquivo do bolão da Copa 2026: ranking final + todos os jogos com palpites, só leitura
+function renderCopa() {
+  if (!Object.keys(dbData.copaJogos||{}).length) return `<div class="empty">Nenhum jogo da Copa guardado.</div>`;
+  let h = `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text2)">🏆 <strong style="color:var(--gold)">Arquivo do Bolão da Copa 2026</strong> — resultado final guardado, só pra consulta.</div>`;
+  h += renderRanking();
+  h += renderJogos();
+  return h;
+}
+
 function renderRanking() {
   const {sorted,exact}=computeRanking();
   const M=['🥇','🥈','🥉'], C=['gold','silver','bronze'];
@@ -720,7 +804,7 @@ function renderRanking() {
     h+=`<div class="pts-row"><span>${l}</span><span class="${c}" style="font-weight:700;white-space:nowrap">${p}</span></div>`;
   });
   h+=`</div><div style="margin-top:11px;padding-top:10px;border-top:1px solid var(--border)"><div style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--gold);letter-spacing:1px;margin-bottom:7px">📈 Multiplicadores por Fase</div><div class="pts-grid">`;
-  [['🌎 Fase de Grupos','×1'],['🎟️ 16 Avos de Final','×1,25'],['🔥 Oitavas de Final','×1,5'],['💥 Quartas de Final','×2'],['⚔️ Semifinais','×2,5'],['🥉 Disputa de 3º Lugar','×2,5'],['🏆 Final','×3']].forEach(([l,m])=>{
+  [['📋 Rodada / Fase de Grupos','×1'],['🎟️ 16 Avos de Final','×1,25'],['🔥 Oitavas de Final','×1,5'],['💥 Quartas de Final','×2'],['⚔️ Semifinal','×2,5'],['🥉 Disputa de 3º Lugar','×2,5'],['🏆 Final','×3']].forEach(([l,m])=>{
     h+=`<div class="pts-row"><span>${l}</span><span style="font-weight:700;color:var(--gold);white-space:nowrap">${m}</span></div>`;
   });
   h+=`</div></div></div>`;
@@ -743,13 +827,13 @@ function renderMatchCard(jogo, opts={}) {
   let h=`<div class="match-card ${opts.highlight?'match-card-today':''}">
     <div class="match-hdr">
       <span class="match-date">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span>
-      <div style="display:flex;gap:5px;align-items:center"><span class="match-stage">${jogo.fase}</span>${badge}</div>
+      <div style="display:flex;gap:5px;align-items:center"><span class="match-stage">${rotulo(jogo)}</span>${badge}</div>
     </div>
     <div class="match-body">
       <div class="scoreboard">
-        <div class="team-info"><div class="team-flag">${flag(jogo.casa)}</div><div class="team-name">${jogo.casa}</div></div>
+        <div class="team-info"><div class="team-flag">${escudo(jogo.casa, jogo.logoCasa)}</div><div class="team-name">${jogo.casa}</div></div>
         <div class="score-box"><div class="score-num">${c}</div><div class="score-div">x</div><div class="score-num">${f}</div></div>
-        <div class="team-info"><div class="team-flag">${flag(jogo.fora)}</div><div class="team-name">${jogo.fora}</div></div>
+        <div class="team-info"><div class="team-flag">${escudo(jogo.fora, jogo.logoFora)}</div><div class="team-name">${jogo.fora}</div></div>
       </div>
     </div>`;
   const pals=Object.entries(jogo.palpites||{});
@@ -793,12 +877,12 @@ function renderJogos() {
   const jogos  = getJogos();
   const hoje   = todayBRT();
 
-  const fases = ['Todos', ...new Set(jogos.map(j => j.fase))];
+  const fases = ['Todos', ...new Set(jogos.map(competicaoDe))];
 
   const filtrados =
     filterFase === 'Todos'
       ? jogos
-      : jogos.filter(j => j.fase === filterFase);
+      : jogos.filter(j => competicaoDe(j) === filterFase);
 
   const jogosHoje     = filtrados.filter(j => diaExibicao(j) === hoje);
   const jogosPassados = filtrados.filter(j => diaExibicao(j) < hoje);
@@ -813,30 +897,32 @@ function renderJogos() {
 
   let h = '';
 
-  // HOJE
-  h += `<div class="today-header">📅 Jogos de Hoje</div>`;
+  // HOJE (não aparece no arquivo da Copa, que já acabou)
+  if (!modoCopa) {
+    h += `<div class="today-header">📅 Jogos de Hoje</div>`;
 
-  if (jogosHoje.length) {
-    jogosHoje.forEach(j => {
-      h += renderMatchCard(j, {highlight:true});
-    });
-  } else {
-    h += `
-      <div style="
-        background:var(--surface);
-        border:1px solid var(--border);
-        border-radius:10px;
-        padding:14px;
-        margin-bottom:14px;
-        text-align:center;
-        color:var(--text2)">
-        Nenhum jogo hoje.
-      </div>
-    `;
+    if (jogosHoje.length) {
+      jogosHoje.forEach(j => {
+        h += renderMatchCard(j, {highlight:true});
+      });
+    } else {
+      h += `
+        <div style="
+          background:var(--surface);
+          border:1px solid var(--border);
+          border-radius:10px;
+          padding:14px;
+          margin-bottom:14px;
+          text-align:center;
+          color:var(--text2)">
+          Nenhum jogo hoje.
+        </div>
+      `;
+    }
   }
 
   // FILTROS
-  h += `<div class="today-header">⚽ Jogos da Copa</div>`;
+  h += `<div class="today-header">⚽ ${modoCopa ? 'Jogos da Copa' : 'Jogos do Bolão'}</div>`;
 
   h += `<div class="filter-bar">`;
   fases.forEach(f => {
@@ -1030,11 +1116,11 @@ function renderPalpitar() {
       const meu  = (jogo.palpites||{})[currentUser.username];
       const tempo = tempoParaJogo(jogo);
       h += `<div class="palpitar-card">
-        <div class="pal-hdr"><span style="font-weight:600;font-size:11px;color:var(--gold)">${jogo.fase}</span><span style="font-size:10px;color:var(--text2)">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span></div>
+        <div class="pal-hdr"><span style="font-weight:600;font-size:11px;color:var(--gold)">${rotulo(jogo)}</span><span style="font-size:10px;color:var(--text2)">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span></div>
         <div class="pal-match-row">
-          <div class="pal-team"><div class="pal-flag">${flag(jogo.casa)}</div><div class="pal-name">${jogo.casa}</div></div>
+          <div class="pal-team"><div class="pal-flag">${escudo(jogo.casa, jogo.logoCasa)}</div><div class="pal-name">${jogo.casa}</div></div>
           <span style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text2)">VS</span>
-          <div class="pal-team"><div class="pal-flag">${flag(jogo.fora)}</div><div class="pal-name">${jogo.fora}</div></div>
+          <div class="pal-team"><div class="pal-flag">${escudo(jogo.fora, jogo.logoFora)}</div><div class="pal-name">${jogo.fora}</div></div>
         </div>
         <div class="my-pal-section">
           <div class="my-pal-label">${emo(currentUser.username)} ${currentUser.username} — seu palpite</div>
@@ -1064,13 +1150,13 @@ function renderPalpitar() {
       const isLive=['1H','HT','2H','ET','BT','P','INT'].includes(s);
       h += `<div class="palpitar-card" style="opacity:.8">
         <div class="pal-hdr" style="background:${isLive?'#2a0000':isDone?'#0a2a0a':'var(--surface2)'}">
-          <span style="font-weight:600;font-size:11px;color:${isLive?'#f87171':isDone?'#4ade80':'#c084fc'}">${jogo.fase}</span>
+          <span style="font-weight:600;font-size:11px;color:${isLive?'#f87171':isDone?'#4ade80':'#c084fc'}">${rotulo(jogo)}</span>
           <span style="font-size:10px;color:var(--text2)">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span>
         </div>
         <div class="pal-match-row">
-          <div class="pal-team"><div class="pal-flag">${flag(jogo.casa)}</div><div class="pal-name">${jogo.casa}</div></div>
+          <div class="pal-team"><div class="pal-flag">${escudo(jogo.casa, jogo.logoCasa)}</div><div class="pal-name">${jogo.casa}</div></div>
           ${jogo.resultado?.casa!=null ? `<div style="text-align:center"><div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--text)">${jogo.resultado.casa} x ${jogo.resultado.fora}</div>${isLive?'<div style="font-size:10px;color:#f87171">● AO VIVO</div>':''}</div>` : `<span style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text2)">VS</span>`}
-          <div class="pal-team"><div class="pal-flag">${flag(jogo.fora)}</div><div class="pal-name">${jogo.fora}</div></div>
+          <div class="pal-team"><div class="pal-flag">${escudo(jogo.fora, jogo.logoFora)}</div><div class="pal-name">${jogo.fora}</div></div>
         </div>
         <div class="my-pal-section">
           ${meu!=null ? `<div style="font-size:12px;color:var(--text2)">✅ Seu palpite: <strong style="color:var(--text)">${meu.casa}x${meu.fora}</strong></div>` : `<div class="locked-msg">🔒 Prazo encerrado — palpite não registrado</div>`}
@@ -1094,17 +1180,16 @@ function renderAdmin() {
   const gruposDuplicados = agruparJogos(jogosRawAdmin).filter(g => g.items.length > 1);
   const totalCopiasExtra = gruposDuplicados.reduce((s,g)=>s+g.items.length-1, 0);
   h+=`<div class="admin-box"><div class="admin-box-title">🔄 Sincronização</div>
-    <div style="font-size:12px;color:var(--text2);background:var(--surface2);border-radius:7px;padding:10px 12px;line-height:1.7"><strong style="color:var(--text)">Última sync:</strong> ${ls} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos (brutos):</strong> ${Object.keys(dbData.jogos||{}).length} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos (dedup):</strong> ${getJogos().length}</div>
+    <div style="font-size:12px;color:var(--text2);background:var(--surface2);border-radius:7px;padding:10px 12px;line-height:1.7"><strong style="color:var(--text)">Última sync:</strong> ${ls} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos:</strong> ${getJogos().length}<br>Fonte: ESPN (grátis, sem chave). Agenda a cada 30 min e placar ao vivo a cada 2 min.<br>⚠️ A ESPN cobre Série A/B, Copa do Brasil, Copa do Nordeste, amistosos e Eliminatórias. <strong style="color:var(--text)">Série C/D e Pernambucano não vêm</strong> (quase todos os jogos do Santa Cruz): cadastre em "Adicionar Jogo Manual".</div>
     <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-sm" onclick="forcSync()">🔄 Sincronizar agora</button>
-      <button class="btn-sm" onclick="limparPlaceholders()">🧹 Limpar códigos de chave (1C, 2F...)</button>
     </div></div>`;
 
   const semRes = getJogos().filter(j=>!['FT','AET','PEN'].includes(j.status||'NS') || j.resultado?.casa == null);
   if (semRes.length) {
     h+=`<div class="admin-box"><div class="admin-box-title">📝 Inserir Resultado Manual</div><div style="font-size:11px;color:var(--text2);margin-bottom:10px">Use para corrigir ou adiantar resultado antes da API atualizar.</div>`;
     semRes.slice(0,15).forEach(jogo=>{
-      h+=`<div class="res-row"><div class="res-match-name">${flag(jogo.casa)} ${jogo.casa} x ${jogo.fora} ${flag(jogo.fora)} <span style="color:var(--text2);font-weight:400"> — ${fmtDate(jogo.data)} · ${jogo.fase}</span></div>
+      h+=`<div class="res-row"><div class="res-match-name">${escudo(jogo.casa, jogo.logoCasa)} ${jogo.casa} x ${jogo.fora} ${escudo(jogo.fora, jogo.logoFora)} <span style="color:var(--text2);font-weight:400"> — ${fmtDate(jogo.data)} · ${rotulo(jogo)}</span></div>
         <div class="res-inputs"><span class="res-team">${jogo.casa}</span><input class="res-in" type="number" min="0" max="20" placeholder="0" id="rc_${jogo._id}"><span class="res-x">x</span><input class="res-in" type="number" min="0" max="20" placeholder="0" id="rf_${jogo._id}"><span class="res-team">${jogo.fora}</span><button class="btn-sm" onclick="salvarRes('${jogo._id}')">Salvar</button></div></div>`;
     });
     h+=`</div>`;
@@ -1113,7 +1198,7 @@ function renderAdmin() {
   if (comRes.length) {
     h+=`<div class="admin-box"><div class="admin-box-title">✅ Resultados Registrados</div>`;
     comRes.forEach(jogo=>{
-      h+=`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:7px;padding:8px 11px;margin-bottom:5px;flex-wrap:wrap;gap:6px"><div><span style="font-weight:600;font-size:12px">${flag(jogo.casa)} ${jogo.casa} ${jogo.resultado.casa}x${jogo.resultado.fora} ${jogo.fora} ${flag(jogo.fora)}</span><span style="font-size:10px;color:var(--text2);display:block">${fmtDate(jogo.data)} · ${jogo.fase}</span></div><button class="btn-danger" onclick="resetRes('${jogo._id}')">✏️ Editar</button></div>`;
+      h+=`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:7px;padding:8px 11px;margin-bottom:5px;flex-wrap:wrap;gap:6px"><div><span style="font-weight:600;font-size:12px">${escudo(jogo.casa, jogo.logoCasa)} ${jogo.casa} ${jogo.resultado.casa}x${jogo.resultado.fora} ${jogo.fora} ${escudo(jogo.fora, jogo.logoFora)}</span><span style="font-size:10px;color:var(--text2);display:block">${fmtDate(jogo.data)} · ${rotulo(jogo)}</span></div><button class="btn-danger" onclick="resetRes('${jogo._id}')">✏️ Editar</button></div>`;
     });
     h+=`</div>`;
   }
@@ -1125,15 +1210,19 @@ function renderAdmin() {
     h+=`<div class="user-list-item"><div><span class="user-list-name">${emo(u.displayName)} ${u.displayName}${isMe?'<span style="font-size:10px;color:var(--text2)"> (você)</span>':''}</span><span class="user-list-meta">Desde ${new Date(u.createdAt).toLocaleDateString('pt-BR')}</span></div><div style="display:flex;align-items:center;gap:6px">${u.isAdmin?`<span class="admin-badge">Admin</span>`:''} ${isAdmin&&!isMe&&!u.isAdmin?`<button class="btn-sm" style="font-size:10px;padding:4px 9px" onclick="toggleAdmin('${key}',true)">+Admin</button>`:''} ${isAdmin&&!isMe&&u.isAdmin?`<button class="btn-danger" style="padding:4px 9px;font-size:10px" onclick="toggleAdmin('${key}',false)">−Admin</button>`:''}</div></div>`;
   });
   h+=`</div>`;
-  const flagOpts = Object.entries(FLAGS).map(([n,f])=>`<option value="${n}">${f} ${n}</option>`).join('');
+  // Sugestões: nossos 4 times + adversários que já apareceram + seleções conhecidas
+  const sugTimes = [...new Set([...NOSSOS_TIMES.map(t=>t.nome), ...getJogos().flatMap(j=>[j.casa,j.fora]), ...Object.keys(FLAGS)])];
+  const sugComp  = [...new Set(['Brasileirão Série A','Brasileirão Série B','Brasileirão Série C','Brasileirão Série D','Copa do Brasil','Copa do Nordeste','Pernambucano','Eliminatórias','Amistoso', ...getJogos().map(j=>j.competicao).filter(Boolean)])];
+  h+=`<datalist id="dl_times">${sugTimes.map(t=>`<option value="${t}">`).join('')}</datalist><datalist id="dl_comp">${sugComp.map(c=>`<option value="${c}">`).join('')}</datalist>`;
   h+=`<div class="admin-box"><div class="admin-box-title">➕ Adicionar Jogo Manual</div>
     <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Use quando a API não tiver o jogo ou para adiantar cadastro.</div>
     <div class="form-grid">
-      <div class="form-group-admin"><label class="form-label-admin">Mandante</label><select class="form-select-admin" id="new_casa">${flagOpts}</select></div>
-      <div class="form-group-admin"><label class="form-label-admin">Visitante</label><select class="form-select-admin" id="new_fora">${flagOpts}</select></div>
+      <div class="form-group-admin"><label class="form-label-admin">Mandante</label><input type="text" class="form-input-admin" id="new_casa" list="dl_times" placeholder="ex: Sport"></div>
+      <div class="form-group-admin"><label class="form-label-admin">Visitante</label><input type="text" class="form-input-admin" id="new_fora" list="dl_times" placeholder="ex: Náutico"></div>
       <div class="form-group-admin"><label class="form-label-admin">Data</label><input type="date" class="form-input-admin" id="new_data"></div>
       <div class="form-group-admin"><label class="form-label-admin">Hora (BRT)</label><input type="time" class="form-input-admin" id="new_hora" value="16:00"></div>
-      <div class="form-group-admin full"><label class="form-label-admin">Fase / Grupo</label><input type="text" class="form-input-admin" id="new_fase" placeholder="ex: Grupo A, Oitavas de Final, Final..."></div>
+      <div class="form-group-admin"><label class="form-label-admin">Competição</label><input type="text" class="form-input-admin" id="new_comp" list="dl_comp" placeholder="ex: Pernambucano"></div>
+      <div class="form-group-admin"><label class="form-label-admin">Fase / Rodada</label><input type="text" class="form-input-admin" id="new_fase" placeholder="ex: Rodada 5, Semifinal, Final..."></div>
     </div>
     <button class="btn-sm" style="margin-top:10px;padding:9px 22px" onclick="addJogo()">➕ Adicionar Jogo</button></div>`;
   h+=`<div class="admin-box"><div class="admin-box-title">🔑 Alterar Minha Senha</div>
@@ -1154,8 +1243,8 @@ window.limparResultadosFuturos = async () => {
   const ok = confirm(`Encontrados ${suspeitos.length} jogo(s) com data futura mas resultado já preenchido (provável placar fantasma). Limpar todos e reabrir pra palpite?`);
   if (!ok) return;
   for (const j of suspeitos) {
-    await update(ref(db, `bolao/jogos/${j._id}/resultado`), {casa:null, fora:null});
-    await update(ref(db, `bolao/jogos/${j._id}`), {status:'NS'});
+    await update(ref(db, `${MP}/jogos/${j._id}/resultado`), {casa:null, fora:null});
+    await update(ref(db, `${MP}/jogos/${j._id}`), {status:'NS'});
   }
   showToast(`${suspeitos.length} resultado(s) futuro(s) limpo(s)! 🧹`);
 };
@@ -1171,9 +1260,9 @@ window.removerDuplicados = async () => {
     g.items.slice(1).forEach(item => { const s = scoreJogo(item); if (s > bestScore) { best = item; bestScore = s; } });
     const palpitesMerged = {};
     g.items.forEach(item => Object.assign(palpitesMerged, item.palpites||{}));
-    await update(ref(db, `bolao/jogos/${best._id}`), {palpites: palpitesMerged, fase: bestFase(g.items), casa: best.casa, fora: best.fora});
+    await update(ref(db, `${MP}/jogos/${best._id}`), {palpites: palpitesMerged, fase: bestFase(g.items), casa: best.casa, fora: best.fora});
     for (const item of g.items) {
-      if (item._id !== best._id) await set(ref(db, `bolao/jogos/${item._id}`), null);
+      if (item._id !== best._id) await set(ref(db, `${MP}/jogos/${item._id}`), null);
     }
   }
   showToast(`${totalExtra} jogo(s) duplicado(s) removido(s)! 🧹`);
@@ -1196,11 +1285,11 @@ window.limparPlaceholders = async () => {
       const correspondente = jogosReais.find(r => r.data === j.data && r.fase === j.fase);
       if (correspondente) {
         const palpitesMerged = { ...correspondente.palpites, ...j.palpites };
-        await update(ref(db, `bolao/jogos/${correspondente._id}`), { palpites: palpitesMerged });
+        await update(ref(db, `${MP}/jogos/${correspondente._id}`), { palpites: palpitesMerged });
         migrados++;
       }
     }
-    await set(ref(db, `bolao/jogos/${j._id}`), null);
+    await set(ref(db, `${MP}/jogos/${j._id}`), null);
   }
 
   showToast(`${lixo.length} jogo(s) com código de chave removido(s). Palpites migrados em ${migrados}. 🧹`);
@@ -1216,7 +1305,7 @@ window.salvarPalpite = async id => {
   const f = document.getElementById(`pf_${id}`)?.value;
   if (c===''||f==='') { showToast('Preencha os dois placares!', true); return; }
   if (+c<0||+f<0||+c>20||+f>20) { showToast('Placar inválido!', true); return; }
-  await update(ref(db, `bolao/jogos/${id}/palpites/${currentUser.username}`), {casa:+c, fora:+f});
+  await update(ref(db, `${MP}/jogos/${id}/palpites/${currentUser.username}`), {casa:+c, fora:+f});
   delete palpiteDrafts[id]; // salvou, não precisa mais do rascunho
   showToast(`Palpite salvo! ${c}x${f} ✅`);
 };
@@ -1224,13 +1313,13 @@ window.salvarRes = async id => {
   const c = document.getElementById(`rc_${id}`)?.value;
   const f = document.getElementById(`rf_${id}`)?.value;
   if (c===''||f==='') { showToast('Preencha o placar!', true); return; }
-  await update(ref(db, `bolao/jogos/${id}/resultado`), {casa:+c, fora:+f});
-  await update(ref(db, `bolao/jogos/${id}`), {status:'FT'});
+  await update(ref(db, `${MP}/jogos/${id}/resultado`), {casa:+c, fora:+f});
+  await update(ref(db, `${MP}/jogos/${id}`), {status:'FT'});
   showToast('Resultado salvo! 🎯');
 };
 window.resetRes = async id => {
-  await update(ref(db, `bolao/jogos/${id}/resultado`), {casa:null, fora:null});
-  await update(ref(db, `bolao/jogos/${id}`), {status:'NS'});
+  await update(ref(db, `${MP}/jogos/${id}/resultado`), {casa:null, fora:null});
+  await update(ref(db, `${MP}/jogos/${id}`), {status:'NS'});
   showToast('Resultado removido para edição.');
 };
 window.toggleAdmin = async (key, makeAdmin) => {
@@ -1249,21 +1338,22 @@ window.changePassword = async () => {
   document.getElementById('new-pass2').value='';
 };
 window.addJogo = async () => {
-  const casa = document.getElementById('new_casa')?.value;
-  const fora = document.getElementById('new_fora')?.value;
+  const casa = document.getElementById('new_casa')?.value?.trim();
+  const fora = document.getElementById('new_fora')?.value?.trim();
   const data = document.getElementById('new_data')?.value;
   const hora = document.getElementById('new_hora')?.value;
-  const fase = document.getElementById('new_fase')?.value?.trim();
-  if (!data || !fase) { showToast('Preencha data e fase!', true); return; }
-  if (casa === fora)  { showToast('Times devem ser diferentes!', true); return; }
-  await push(ref(db,'bolao/jogos'), {casa, fora, data, hora, fase, status:'NS', resultado:{casa:null, fora:null}, palpites:{}});
+  const competicao = document.getElementById('new_comp')?.value?.trim();
+  const fase = document.getElementById('new_fase')?.value?.trim() || '';
+  if (!casa || !fora)        { showToast('Preencha os dois times!', true); return; }
+  if (!data || !competicao)  { showToast('Preencha data e competição!', true); return; }
+  if (canonTeam(casa) === canonTeam(fora)) { showToast('Times devem ser diferentes!', true); return; }
+  await push(ref(db,`${MP}/jogos`), {casa, fora, data, hora, competicao, fase, status:'NS', resultado:{casa:null, fora:null}, palpites:{}});
   showToast(`${casa} x ${fora} adicionado! ⚽`);
-  document.getElementById('new_data').value = '';
-  document.getElementById('new_fase').value = '';
+  ['new_casa','new_fora','new_data','new_fase'].forEach(id => document.getElementById(id).value = '');
 };
 window.zerarTudo = async () => {
-  await set(ref(db,'bolao/jogos'), {});
-  await set(ref(db,'bolao/lastSync'), null);
+  await set(ref(db,`${MP}/jogos`), {});
+  await set(ref(db,`${MP}/lastSync`), null);
   showToast('Dados zerados.');
 };
 
@@ -1296,12 +1386,12 @@ window.EXTERMINAR_LIXO_ESPN = async () => {
     // Se o lixo tinha palpites, joga pro oficial correspondente
     if (oficialCorrespondente && jogoRuim.palpites && Object.keys(jogoRuim.palpites).length > 0) {
       const palpitesAtualizados = { ...oficialCorrespondente.palpites, ...jogoRuim.palpites };
-      await update(ref(db, `bolao/jogos/${oficialCorrespondente._id}`), { palpites: palpitesAtualizados });
+      await update(ref(db, `${MP}/jogos/${oficialCorrespondente._id}`), { palpites: palpitesAtualizados });
       migrados++;
     }
 
     // DELETA O INTRUSO SEM DÓ
-    await set(ref(db, `bolao/jogos/${jogoRuim._id}`), null);
+    await set(ref(db, `${MP}/jogos/${jogoRuim._id}`), null);
   }
 
   showToast(`Sucesso! ${lixoEspn.length} lixos limpos. Palpites salvos em ${migrados} jogo(s). 🔥`);
