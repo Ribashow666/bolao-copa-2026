@@ -16,8 +16,10 @@ const FB_CONFIG = {
 const fbApp = initializeApp(FB_CONFIG);
 const db    = getDatabase(fbApp);
 
-const KNOWN_PLAYERS = ['Milho','Wly','Igor','Jucas','Wendel','Pedru','Vini','Melk'];
-const EMOJIS = {Milho:'🌽',Wly:'🦅',Igor:'🐺',Jucas:'🦁',Wendel:'⚡',Pedru:'🐉',Vini:'🐆',Melk:'🌊'};
+const KNOWN_PLAYERS = ['Milho','Wly','Igor','Jucas','Wendel','Pedru','Vini','Melk','Gilles'];
+// Na aba Copa 2026 só aparece quem palpitou na Copa (o Gilles entrou depois)
+const jogadoresFixos = () => modoCopa ? [] : KNOWN_PLAYERS;
+const EMOJIS = {Milho:'🌽',Wly:'🦅',Igor:'🐺',Jucas:'🦁',Wendel:'⚡',Pedru:'🐉',Vini:'🐆',Melk:'🌊',Gilles:'🦈'};
 const FLAGS = {
   'Brazil':'🇧🇷','Argentina':'🇦🇷','France':'🇫🇷','Germany':'🇩🇪',
   'England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Spain':'🇪🇸','Portugal':'🇵🇹','Uruguay':'🇺🇾',
@@ -76,9 +78,22 @@ const flag    = t => {
 };
 // Escudo do clube (logo da API) quando tiver; senão bandeira/emoji
 const escudo  = (nome, logo, cls='crest') => logo ? `<img class="${cls}" src="${logo}" alt="" loading="lazy">` : flag(nome);
+
+// ── Perfis: foto, emoji, frase e time do coração ficam em bolao/users/{key} ──
+const ESCUDOS_TIMES = {sport:7635, nautico:7633, santacruz:4929}; // IDs da ESPN
+const NOMES_TIMES   = {sport:'Sport', nautico:'Náutico', santacruz:'Santa Cruz'};
+const escudoTime = key => ESCUDOS_TIMES[key] ? `https://a.espncdn.com/i/teamlogos/soccer/500/${ESCUDOS_TIMES[key]}.png` : null;
+const EMOJIS_PERFIL = ['⚽','🦁','🐺','🦅','🐉','🐆','🦈','🐍','🐯','🦊','🐻','🐗','🦍','🐊','🔥','⚡','🌊','🌽','👑','💀','🤡','😎','🍺','🎯'];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const perfilDe = nome => Object.values(dbData.users||{}).find(u => u.displayName === nome) || {};
+// Só aceita foto gerada pelo próprio site (JPEG em base64), nunca uma URL qualquer vinda do banco
+const fotoOk = f => typeof f === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(f);
+const timeTag = n => { const t = perfilDe(n).time, u = escudoTime(t); return u ? `<img class="crest" src="${u}" alt="" title="${NOMES_TIMES[t]}">` : ''; };
 const competicaoDe = j => j.competicao || j.fase || 'Outros';
 const rotulo  = j => [j.competicao, j.fase].filter(Boolean).join(' · ');
-const emo     = n => EMOJIS[n] || '👤';
+const emoRaw  = n => perfilDe(n).emoji || EMOJIS[n] || '👤'; // texto puro (legenda do gráfico)
+// Avatar em HTML: foto do perfil se tiver, senão o emoji escolhido
+const emo     = n => { const f = perfilDe(n).foto; return fotoOk(f) ? `<img class="av" src="${f}" alt="">` : esc(emoRaw(n)); };
 const fmtDate = d => { if(!d) return ''; const [,m,day]=d.split('-'); return `${day}/${m}`; };
 const fmtTime = t => t ? t.substring(0,5) : '';
 const toKey   = s => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
@@ -241,7 +256,7 @@ function getJogos() {
 
 function computeRanking() {
   const pts={}, exact={};
-  KNOWN_PLAYERS.forEach(j=>{pts[j]=0; exact[j]=0;});
+  jogadoresFixos().forEach(j=>{pts[j]=0; exact[j]=0;});
   Object.values(dbData.users||{}).forEach(u=>{
     if(!pts[u.displayName]) { pts[u.displayName]=0; exact[u.displayName]=0; }
   });
@@ -258,7 +273,7 @@ function computeRanking() {
   });
   const allPalPlayers = new Set();
   getJogos().forEach(j=>Object.keys(j.palpites||{}).forEach(n=>allPalPlayers.add(n)));
-  const visible = Object.entries(pts).filter(([n])=>KNOWN_PLAYERS.includes(n)||allPalPlayers.has(n));
+  const visible = Object.entries(pts).filter(([n])=>jogadoresFixos().includes(n)||allPalPlayers.has(n));
   return {sorted: visible.sort((a,b)=>b[1]-a[1]), exact};
 }
 
@@ -273,7 +288,7 @@ function computeEvolucao() {
 
   const allPalPlayers = new Set();
   jogos.forEach(j=>Object.keys(j.palpites||{}).forEach(n=>allPalPlayers.add(n)));
-  const jogadores = [...new Set([...KNOWN_PLAYERS, ...allPalPlayers])];
+  const jogadores = [...new Set([...jogadoresFixos(), ...allPalPlayers])];
 
   const dias = [...new Set(jogos.map(j=>diaExibicao(j)))].sort();
   if (!dias.length) return {dias:[], series:{}};
@@ -409,7 +424,7 @@ window.doLogout = () => {
 function bootApp() {
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app').style.display='block';
-  document.getElementById('user-av').textContent     = currentUser.username[0].toUpperCase();
+  atualizarCabecalho();
   document.getElementById('user-nm-hdr').textContent = currentUser.username;
   currentTab = 'ranking';
   get(ref(db, `bolao/users/${currentUser.key}`)).then(snap=>{
@@ -433,6 +448,14 @@ function bootApp() {
   countdownTimer = setInterval(()=>{ if(currentTab==='palpitar' && !isTypingInPalpite()) render(); }, 30000);
 }
 
+// Bolinha do usuário no topo: foto do perfil, senão emoji, senão a inicial
+function atualizarCabecalho() {
+  if (!currentUser) return;
+  const u = perfilDe(currentUser.username);
+  document.getElementById('user-av').innerHTML = fotoOk(u.foto) ? `<img src="${u.foto}" alt="">`
+    : esc(u.emoji || currentUser.username[0].toUpperCase());
+}
+
 function updateAdminTab() {
   const tabsInner = document.querySelector('.tabs-inner');
   const existing  = document.getElementById('tab-admin');
@@ -454,6 +477,7 @@ function isTypingInPalpite() {
   const ae = document.activeElement;
   if (!ae || !['INPUT','SELECT','TEXTAREA'].includes(ae.tagName)) return false;
   if (currentTab === 'palpitar') return /^p[cf]_/.test(ae.id || '');
+  if (currentTab === 'perfil')   return /^perf_/.test(ae.id || '');
   if (currentTab === 'eleicoes' || currentTab === 'admin') return /^el_/.test(ae.id || '');
   return false;
 }
@@ -659,7 +683,9 @@ function render() {
   if (!el) return;
 
   modoCopa = currentTab === 'copa';
+  atualizarCabecalho(); // foto/emoji pode ter mudado no banco
   if (currentTab === 'ranking')   { el.innerHTML = renderRanking(); initEvolucaoChart(); }
+  else if (currentTab === 'perfil')    { el.innerHTML = renderPerfil(); }
   else if (currentTab === 'copa')      { el.innerHTML = renderCopa(); initEvolucaoChart(); }
   else if (currentTab === 'jogos')     { el.innerHTML = renderJogos(); }
   else if (currentTab === 'palpitar')  { el.innerHTML = renderPalpitar(); }
@@ -683,7 +709,7 @@ function initEvolucaoChart() {
   const jogadores = Object.keys(series);
 
   const datasets = jogadores.map((j,i)=>({
-    label: `${emo(j)} ${j}`,
+    label: `${emoRaw(j)} ${j}`,
     data: series[j],
     borderColor: palette[i%palette.length],
     backgroundColor: palette[i%palette.length],
@@ -769,16 +795,94 @@ function renderCopa() {
   return h;
 }
 
+function renderPerfil() {
+  const nome = currentUser.username;
+  const u = perfilDe(nome);
+  const foto = fotoOk(u.foto) ? u.foto : null;
+  let h = `<div class="sec-title">👤 Meu Perfil</div>
+    <div class="perfil-card">
+      <div class="perfil-foto">${foto ? `<img src="${foto}" alt="">` : `<span>${esc(emoRaw(nome))}</span>`}</div>
+      <div><div class="perfil-nome">${esc(nome)} ${timeTag(nome)}</div>
+      ${u.status ? `<div class="perfil-status">“${esc(u.status)}”</div>` : ''}</div>
+    </div>`;
+
+  h += `<div class="admin-box"><div class="admin-box-title">📷 Foto</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px">O site corta a foto no formato quadrado e diminui antes de salvar.</div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <label class="btn-sm" style="cursor:pointer">📷 Escolher foto<input type="file" accept="image/*" style="display:none" onchange="enviarFoto(this)"></label>
+      ${foto ? `<button class="btn-danger" onclick="salvarPerfil({foto:null})">Remover foto</button>` : ''}
+    </div></div>`;
+
+  const meuEmoji = emoRaw(nome);
+  h += `<div class="admin-box"><div class="admin-box-title">😎 Emoji <span style="font-size:11px;color:var(--text2);font-weight:400">(aparece quando não tem foto)</span></div><div class="emoji-grid">`;
+  EMOJIS_PERFIL.forEach(e => { h += `<button class="emoji-opt ${e===meuEmoji?'active':''}" onclick="salvarPerfil({emoji:'${e}'})">${e}</button>`; });
+  h += `</div></div>`;
+
+  h += `<div class="admin-box"><div class="admin-box-title">❤️ Time do Coração</div><div class="time-grid">`;
+  [...Object.keys(NOMES_TIMES), ''].forEach(k => {
+    h += `<button class="time-opt ${(u.time||'')===k?'active':''}" onclick="salvarPerfil({time:'${k}'})">${k ? `<img class="crest" src="${escudoTime(k)}" alt=""> ${NOMES_TIMES[k]}` : '➖ Nenhum'}</button>`;
+  });
+  h += `</div></div>`;
+
+  h += `<div class="admin-box"><div class="admin-box-title">💬 Frase</div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <input class="form-input-admin" style="flex:1;min-width:180px" id="perf_status" maxlength="40" placeholder="ex: Hoje eu cravo o placar" value="${esc(u.status||'')}">
+      <button class="btn-sm" onclick="salvarPerfil({status: document.getElementById('perf_status').value.trim()})">Salvar</button>
+    </div></div>`;
+
+  h += `<div class="admin-box"><div class="admin-box-title">🔑 Trocar Senha</div>
+    <div class="form-grid" style="gap:8px">
+      <div class="form-group-admin full"><label class="form-label-admin">Senha atual</label><input class="form-input-admin" type="password" id="perf_pass0" autocomplete="current-password"></div>
+      <div class="form-group-admin full"><label class="form-label-admin">Nova senha</label><input class="form-input-admin" type="password" id="perf_pass1" placeholder="mínimo 6 caracteres" autocomplete="new-password"></div>
+      <div class="form-group-admin full"><label class="form-label-admin">Confirmar nova senha</label><input class="form-input-admin" type="password" id="perf_pass2" autocomplete="new-password"></div>
+    </div>
+    <button class="btn-sm" style="margin-top:10px" onclick="changePassword()">🔑 Trocar Senha</button></div>`;
+
+  h += `<button class="btn-danger" style="width:100%;padding:12px;margin-top:6px" onclick="doLogout()">🚪 Sair da conta</button>`;
+  return h;
+}
+
+// Valor vazio/null apaga o campo no banco (ex: remover foto, "Nenhum" time)
+window.salvarPerfil = async campos => {
+  const dados = Object.fromEntries(Object.entries(campos).map(([k,v]) => [k, v || null]));
+  if (dados.status) dados.status = dados.status.slice(0, 40);
+  await update(ref(db, `bolao/users/${currentUser.key}`), dados);
+  showToast('Perfil atualizado! ✅');
+};
+window.enviarFoto = async input => {
+  const file = input.files?.[0];
+  if (!file) return;
+  try { await salvarPerfil({foto: await reduzirFoto(file)}); }
+  catch (e) { console.error(e); showToast('Não consegui ler essa imagem. Tente uma JPG ou PNG.', true); }
+};
+// Corta no centro em quadrado e reduz pra 128×128 JPEG (~10 KB): cabe no Realtime Database,
+// sem precisar do Firebase Storage (que exige plano pago)
+function reduzirFoto(file, lado=128) {
+  return new Promise((ok, falha) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(img.naturalWidth, img.naturalHeight);
+      const c = document.createElement('canvas');
+      c.width = c.height = lado;
+      c.getContext('2d').drawImage(img, (img.naturalWidth-s)/2, (img.naturalHeight-s)/2, s, s, 0, 0, lado, lado);
+      URL.revokeObjectURL(url);
+      ok(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); falha(new Error('imagem inválida')); };
+    img.src = url;
+  });
+}
+
 function renderRanking() {
   const {sorted,exact}=computeRanking();
   const M=['🥇','🥈','🥉'], C=['gold','silver','bronze'];
   let h=`<div class="sec-title">🏆 Classificação</div><div class="podium-grid">`;
   sorted.slice(0,3).forEach(([n,p],i)=>{
-    h+=`<div class="podium-card ${C[i]}" style="cursor:pointer" onclick="showPlayerModal('${n}')"><span class="p-medal">${M[i]}</span><div style="font-size:16px">${emo(n)}</div><div class="p-name">${n}</div><div class="p-pts">${p}</div><div class="p-lbl">pts</div></div>`;
+    h+=`<div class="podium-card ${C[i]}" style="cursor:pointer" onclick="showPlayerModal('${n}')"><span class="p-medal">${M[i]}</span><div style="font-size:16px">${emo(n)}</div><div class="p-name">${n} ${timeTag(n)}</div><div class="p-pts">${p}</div><div class="p-lbl">pts</div></div>`;
   });
   h+=`</div><div class="rank-list">`;
   sorted.slice(3).forEach(([n,p],i)=>{
-    h+=`<div class="rank-item" style="cursor:pointer" onclick="showPlayerModal('${n}')"><span class="rank-pos">${i+4}º</span><span style="font-size:16px">${emo(n)}</span><span class="rank-name">${n}</span><div style="text-align:right"><div class="rank-pts">${p}</div><div style="font-size:10px;color:var(--text2)">pontos</div></div></div>`;
+    h+=`<div class="rank-item" style="cursor:pointer" onclick="showPlayerModal('${n}')"><span class="rank-pos">${i+4}º</span><span style="font-size:16px">${emo(n)}</span><span class="rank-name">${n} ${timeTag(n)}</span><div style="text-align:right"><div class="rank-pts">${p}</div><div style="font-size:10px;color:var(--text2)">pontos</div></div></div>`;
   });
   h+=`</div>`;
 
@@ -1225,12 +1329,6 @@ function renderAdmin() {
       <div class="form-group-admin"><label class="form-label-admin">Fase / Rodada</label><input type="text" class="form-input-admin" id="new_fase" placeholder="ex: Rodada 5, Semifinal, Final..."></div>
     </div>
     <button class="btn-sm" style="margin-top:10px;padding:9px 22px" onclick="addJogo()">➕ Adicionar Jogo</button></div>`;
-  h+=`<div class="admin-box"><div class="admin-box-title">🔑 Alterar Minha Senha</div>
-    <div class="form-grid" style="gap:8px">
-      <div class="form-group-admin full"><label class="form-label-admin">Nova Senha</label><input class="form-input-admin" type="password" id="new-pass" placeholder="mínimo 6 caracteres"></div>
-      <div class="form-group-admin full"><label class="form-label-admin">Confirmar Nova Senha</label><input class="form-input-admin" type="password" id="new-pass2" placeholder="repita"></div>
-    </div>
-    <button class="btn-sm" style="margin-top:10px" onclick="changePassword()">🔑 Alterar Senha</button></div>`;
   h+=elx.renderEleicoesAdmin();
   return h;
 }
@@ -1327,15 +1425,18 @@ window.toggleAdmin = async (key, makeAdmin) => {
   showToast(makeAdmin ? 'Admin concedido! 🔑' : 'Admin removido.');
 };
 window.changePassword = async () => {
-  const p1 = document.getElementById('new-pass')?.value;
-  const p2 = document.getElementById('new-pass2')?.value;
+  const p0 = document.getElementById('perf_pass0')?.value;
+  const p1 = document.getElementById('perf_pass1')?.value;
+  const p2 = document.getElementById('perf_pass2')?.value;
+  if (!p0)              { showToast('Digite a senha atual!', true); return; }
   if (!p1||p1.length<6) { showToast('Mínimo 6 caracteres!', true); return; }
   if (p1!==p2)          { showToast('Senhas não coincidem!', true); return; }
-  const hash = await hashPassword(p1);
-  await update(ref(db, `bolao/users/${currentUser.key}`), {passwordHash: hash});
+  // Confere a senha atual no banco (evita trocar a senha de quem deixou o celular logado)
+  const snap = await get(ref(db, `bolao/users/${currentUser.key}`));
+  if (await hashPassword(p0) !== snap.val()?.passwordHash) { showToast('Senha atual incorreta!', true); return; }
+  await update(ref(db, `bolao/users/${currentUser.key}`), {passwordHash: await hashPassword(p1)});
   showToast('Senha alterada! ✅');
-  document.getElementById('new-pass').value='';
-  document.getElementById('new-pass2').value='';
+  ['perf_pass0','perf_pass1','perf_pass2'].forEach(id => document.getElementById(id).value='');
 };
 window.addJogo = async () => {
   const casa = document.getElementById('new_casa')?.value?.trim();
@@ -1405,7 +1506,7 @@ window.showPlayerModal = (playerName) => {
   const rankingPorDia = computeRankingPorDia();
   const allPalPlayers = new Set();
   jogos.forEach(j => Object.keys(j.palpites||{}).forEach(n => allPalPlayers.add(n)));
-  const allPlayers = [...new Set([...KNOWN_PLAYERS, ...allPalPlayers])];
+  const allPlayers = [...new Set([...jogadoresFixos(), ...allPalPlayers])];
 
   const earnedMap = computeAchievements(jogos, rankingPorDia, allPlayers);
   const earned = earnedMap[playerName] || new Set();
@@ -1439,7 +1540,8 @@ window.showPlayerModal = (playerName) => {
   overlay.onclick = (e) => { if (e.target === overlay) closePlayerModal(); };
   overlay.innerHTML = `<div class="achv-modal">
     <div class="achv-modal-hdr">
-      <div class="achv-modal-title">${emo(playerName)} ${playerName}</div>
+      <div class="achv-modal-title">${emo(playerName)} ${playerName} ${timeTag(playerName)}
+        ${perfilDe(playerName).status ? `<div class="perfil-status" style="font-size:12px">“${esc(perfilDe(playerName).status)}”</div>` : ''}</div>
       <button class="achv-close-btn" onclick="closePlayerModal()">✕</button>
     </div>
     ${body}
