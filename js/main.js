@@ -931,13 +931,17 @@ function htmlChatLista() {
   if (!chatMsgs.length) return `<div class="chat-vazio">Ninguém falou nada ainda. Começa a resenha! 😂</div>`;
   return chatMsgs.map(m => {
     const meu = m.nome === currentUser.username;
-    const podeApagar = meu || currentUser.isAdmin;
+    const podeApagar = !m.apagada && (meu || currentUser.isAdmin);
+    // Apagada: igual ao zap, fica o aviso no lugar (e quem apagou, se não foi o próprio autor)
+    const texto = m.apagada
+      ? `<div class="chat-texto chat-apagada">🚫 Mensagem apagada${m.apagadaPor && m.apagadaPor !== m.nome ? ` por ${esc(m.apagadaPor)}` : ''}</div>`
+      : `<div class="chat-texto">${esc(m.texto)}</div>`;
     const foto = perfilDe(m.nome).foto;
     return `<div class="chat-msg ${meu ? 'meu' : ''}">
       <div class="chat-av">${fotoOk(foto) ? `<img src="${foto}" alt="">` : esc(emoRaw(m.nome))}</div>
       <div class="chat-balao">
         <div class="chat-nome">${esc(m.nome)} ${timeTag(m.nome)}</div>
-        <div class="chat-texto">${esc(m.texto)}</div>
+        ${texto}
         <div class="chat-hora">${fmtHoraChat(m.ts)}${podeApagar ? ` · <button class="chat-del" onclick="apagarMsg('${m.id}')">apagar</button>` : ''}</div>
       </div>
     </div>`;
@@ -984,7 +988,8 @@ window.enviarMsg = async () => {
 };
 window.apagarMsg = async id => {
   if (!confirm('Apagar essa mensagem?')) return;
-  await set(ref(db, `chat/mensagens/${id}`), null);
+  // Não remove o registro: tira o texto do banco e marca como apagada (e por quem)
+  await update(ref(db, `chat/mensagens/${id}`), {texto: null, apagada: true, apagadaPor: currentUser.username});
 };
 
 function renderRanking() {
