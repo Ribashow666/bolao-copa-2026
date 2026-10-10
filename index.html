@@ -3,12 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Só carrega/conecta onde o site precisa: Firebase, ESPN, fontes do Google e o Chart.js -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdn.jsdelivr.net https://*.firebaseio.com https://apis.google.com; connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://site.api.espn.com; img-src 'self' data: blob: https://a.espncdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; frame-src https://bolao-copa-2026-ef7f5.firebaseapp.com https://*.firebaseio.com; object-src 'none'; base-uri 'self'; form-action 'none'">
 <title>Bolão Muita Paz – PE</title>
 <link rel="icon" type="image/png" href="assets/image.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles/main.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
 </head>
 <body>
 <div id="loading-screen">
@@ -24,6 +26,13 @@
       <div class="auth-title">Bolão Muita Paz</div>
       <div class="auth-sub">Sport · Náutico · Santa Cruz · Seleção 🇧🇷</div>
     </div>
+    <div id="pending-box" style="display:none;text-align:center">
+      <div style="font-size:40px;margin-bottom:10px">⏳</div>
+      <div style="font-weight:600;margin-bottom:6px">Conta criada!</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">Agora é só esperar um admin aprovar.<br>Esta tela abre o bolão sozinha quando sair a aprovação.</div>
+      <button class="btn-auth" onclick="doLogout()">Sair</button>
+    </div>
+    <div id="auth-forms">
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login-btn" onclick="switchAuth('login')">Entrar</button>
       <button class="auth-tab" id="tab-reg-btn" onclick="switchAuth('register')">Criar Conta</button>
@@ -53,7 +62,7 @@
         <span class="player-tag">🐉 Pedru</span>
         <span class="player-tag">🐆 Vini</span>
         <span class="player-tag">🌊 Melk</span><br>
-        <span style="font-size:10px">Use exatamente seu nome do grupo para entrar no ranking.</span>
+        <span style="font-size:10px">Já tem conta? Use "Entrar" com a senha de sempre. Conta nova precisa da aprovação de um admin.</span>
       </div>
       <div class="form-group">
         <label class="form-label">Nome de usuário</label>
@@ -72,6 +81,7 @@
       </div>
       <div class="form-error" id="reg-global-err" style="margin-bottom:10px;font-size:12px"></div>
       <button class="btn-auth" id="btn-reg" onclick="doRegister()">Criar Conta</button>
+    </div>
     </div>
   </div>
 </div>

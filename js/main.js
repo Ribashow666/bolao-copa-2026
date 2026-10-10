@@ -1,6 +1,9 @@
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getDatabase, ref, onValue, set, update, push, get, runTransaction, query, limitToLast, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
+  updatePassword, reauthenticateWithCredential, EmailAuthProvider }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { BADGE_DEFS, RARITY_META, computeAchievements } from "./achievements.js";
 import { initEleicoes } from "./eleicoes.js";
 
@@ -15,6 +18,9 @@ const FB_CONFIG = {
 };
 const fbApp = initializeApp(FB_CONFIG);
 const db    = getDatabase(fbApp);
+const auth  = getAuth(fbApp);
+// Login é pelo apelido: por baixo, cada jogador é um e-mail fictício no Firebase Auth (nenhum e-mail é enviado)
+const emailDe = key => `${key}@bolao-muitapaz.app`;
 
 const KNOWN_PLAYERS = ['Milho','Wly','Igor','Jucas','Wendel','Pedru','Vini','Melk','Gilles'];
 // Na aba Copa 2026 só aparece quem palpitou na Copa (o Gilles entrou depois)
@@ -66,6 +72,7 @@ let modoCopa    = false; // true na aba "Copa 2026" (arquivo do bolão da Copa, 
 let countdownTimer = null;
 let palpiteDrafts = {}; // guarda o que o usuário digitou mas ainda não salvou (evita perder valor em re-render)
 
+// Hash do login antigo: só serve pra provar a senha antiga uma vez, na migração pro Firebase Auth
 async function hashPassword(pass) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass + 'bolao2026salt'));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
@@ -76,8 +83,9 @@ const flag    = t => {
   const found = Object.keys(FLAGS).find(k => normTeam(k) === nt);
   return found ? FLAGS[found] : '⚽';
 };
-// Escudo do clube (logo da API) quando tiver; senão bandeira/emoji
-const escudo  = (nome, logo, cls='crest') => logo ? `<img class="${cls}" src="${logo}" alt="" loading="lazy">` : flag(nome);
+// Escudo do clube (logo da API) quando tiver; senão bandeira/emoji. Só aceita imagem do CDN da ESPN.
+const logoOk  = u => typeof u === 'string' && /^https:\/\/a\.espncdn\.com\/[\w\-./]+$/.test(u);
+const escudo  = (nome, logo, cls='crest') => logoOk(logo) ? `<img class="${cls}" src="${logo}" alt="" loading="lazy">` : flag(nome);
 
 // ── Perfis: foto, emoji, frase e time do coração ficam em bolao/users/{key} ──
 const ESCUDOS_TIMES = {sport:7635, nautico:7633, santacruz:4929}; // IDs da ESPN
@@ -85,17 +93,19 @@ const NOMES_TIMES   = {sport:'Sport', nautico:'Náutico', santacruz:'Santa Cruz'
 const escudoTime = key => ESCUDOS_TIMES[key] ? `https://a.espncdn.com/i/teamlogos/soccer/500/${ESCUDOS_TIMES[key]}.png` : null;
 const EMOJIS_PERFIL = ['⚽','🦁','🐺','🦅','🐉','🐆','🦈','🐍','🐯','🦊','🐻','🐗','🦍','🐊','🔥','⚡','🌊','🌽','👑','💀','🤡','😎','🍺','🎯'];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Argumento de onclick="..." vindo do banco: JSON (vira string JS) + escape de HTML (o atributo é decodificado antes do JS rodar)
+const js  = v => esc(JSON.stringify(v));
 const perfilDe = nome => Object.values(dbData.users||{}).find(u => u.displayName === nome) || {};
 // Só aceita foto gerada pelo próprio site (JPEG em base64), nunca uma URL qualquer vinda do banco
 const fotoOk = f => typeof f === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(f);
 const timeTag = n => { const t = perfilDe(n).time, u = escudoTime(t); return u ? `<img class="crest" src="${u}" alt="" title="${NOMES_TIMES[t]}">` : ''; };
 const competicaoDe = j => j.competicao || j.fase || 'Outros';
-const rotulo  = j => [j.competicao, j.fase].filter(Boolean).join(' · ');
+const rotulo  = j => esc([j.competicao, j.fase].filter(Boolean).join(' · '));
 const emoRaw  = n => perfilDe(n).emoji || EMOJIS[n] || '👤'; // texto puro (legenda do gráfico)
 // Avatar em HTML: foto do perfil se tiver, senão o emoji escolhido
 const emo     = n => { const f = perfilDe(n).foto; return fotoOk(f) ? `<img class="av" src="${f}" alt="">` : esc(emoRaw(n)); };
-const fmtDate = d => { if(!d) return ''; const [,m,day]=d.split('-'); return `${day}/${m}`; };
-const fmtTime = t => t ? t.substring(0,5) : '';
+const fmtDate = d => { if(!d) return ''; const [,m,day]=String(d).split('-'); return esc(`${day}/${m}`); };
+const fmtTime = t => t ? esc(String(t).substring(0,5)) : '';
 const toKey   = s => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
 
 function calcPts(real, pal) {
@@ -132,22 +142,27 @@ function getMulti(fase) {
   return 1;
 }
 
+// data + hora (BRT) → timestamp
+function kickoffDe(data, hora) {
+  const [h, mi] = hora.split(':').map(Number);
+  const [y, mo, d] = data.split('-').map(Number);
+  return Date.UTC(y, mo-1, d, h+3, mi, 0);
+}
+// As regras do banco usam o campo kickoff pra fechar os palpites: a tela usa o mesmo valor
+const kickoffJogo = jogo => jogo.kickoff || (jogo.data && jogo.hora ? kickoffDe(jogo.data, jogo.hora) : null);
+
 function jogoAberto(jogo) {
-  if (!jogo.data || !jogo.hora) return false;
+  const k = kickoffJogo(jogo);
+  if (!k) return false;
   const s = jogo.status || 'NS';
   if (['FT','AET','PEN','1H','HT','2H','ET','BT','P','INT'].includes(s)) return false;
-  const [h, mi] = jogo.hora.split(':').map(Number);
-  const [y, mo, d] = jogo.data.split('-').map(Number);
-  const kickoffUTC = Date.UTC(y, mo-1, d, h+3, mi, 0);
-  return Date.now() < kickoffUTC;
+  return Date.now() < k;
 }
 
 function tempoParaJogo(jogo) {
-  if (!jogo.data || !jogo.hora) return null;
-  const [h, mi] = jogo.hora.split(':').map(Number);
-  const [y, mo, d] = jogo.data.split('-').map(Number);
-  const kickoffUTC = Date.UTC(y, mo-1, d, h+3, mi, 0);
-  const diff = kickoffUTC - Date.now();
+  const k = kickoffJogo(jogo);
+  if (!k) return null;
+  const diff = k - Date.now();
   if (diff <= 0) return null;
   const totalMin = Math.floor(diff/60000);
   const hrs = Math.floor(totalMin/60), min = totalMin%60;
@@ -234,8 +249,9 @@ function bestFase(items) {
 //    (jogos vindos de fontes/fusos diferentes podem cair em datas vizinhas) ──
 function getJogos() {
   // Aba "Copa 2026": mesmo cálculo de ranking/jogos, mas lendo o arquivo da Copa (bolao/jogos)
+  // No bolão atual os palpites ficam fora do jogo (palpites/{jogo}), pra poderem ficar escondidos até o apito
   const all = Object.entries((modoCopa ? dbData.copaJogos : dbData.jogos)||{})
-    .map(([id,j])=>({...j, _id:id}))
+    .map(([id,j])=>({...j, _id:id, ...(modoCopa ? {} : {palpites: palpitesVivos[id] || {}})}))
     .sort((a,b)=>{
       const dd = a.data>b.data ? 1 : a.data<b.data ? -1 : 0;
       return dd || ((a.hora||'')>(b.hora||'') ? 1 : -1);
@@ -362,6 +378,23 @@ window.switchAuth = mode => {
   document.getElementById('tab-reg-btn').classList.toggle('active', !isLogin);
   clearAuthErrors();
 };
+const ERROS_LOGIN = ['auth/invalid-credential','auth/invalid-login-credentials','auth/user-not-found','auth/wrong-password'];
+let authOcupado = false;  // login/cadastro em andamento: o onAuthStateChanged espera o vínculo terminar
+let appIniciado = false;
+
+// Liga a conta do Firebase Auth ao jogador. As regras do banco só deixam se: a senha antiga bate com o hash
+// guardado em legado/ (que ninguém lê), ou um admin liberou um novo acesso pra esse jogador.
+async function vincularConta(user, key, pass) {
+  await set(ref(db, `provas/${user.uid}`), await hashPassword(pass));
+  await update(ref(db), {
+    [`bolao/users/${key}/uid`]: user.uid,
+    [`bolao/users/${key}/liberado`]: null,
+    [`contas/${user.uid}`]: key,
+    [`legado/${key}`]: null,
+    [`provas/${user.uid}`]: null,
+  });
+}
+
 window.doLogin = async () => {
   clearAuthErrors();
   const username = document.getElementById('login-user').value.trim();
@@ -372,17 +405,36 @@ window.doLogin = async () => {
   if (!ok) return;
   const btn=document.getElementById('btn-login');
   btn.disabled=true; btn.textContent='Entrando...';
+  authOcupado = true;
+  const erro = msg => { document.getElementById('login-global-err').textContent = msg; };
   try {
-    const userKey = toKey(username);
-    const snap = await get(ref(db, `bolao/users/${userKey}`));
-    if (!snap.exists()) { document.getElementById('login-global-err').textContent='Usuário não encontrado. Crie uma conta.'; return; }
-    const ud = snap.val();
-    if (await hashPassword(pass) !== ud.passwordHash) { document.getElementById('login-pass-err').textContent='Senha incorreta'; document.getElementById('login-pass').classList.add('error'); return; }
-    currentUser = {username: ud.displayName, key: userKey, isAdmin: ud.isAdmin||false};
-    localStorage.setItem('bolao_session', JSON.stringify(currentUser));
-    bootApp();
-  } catch(e) { document.getElementById('login-global-err').textContent='Erro de conexão. Tente novamente.'; }
-  finally { btn.disabled=false; btn.textContent='Entrar'; }
+    const key = toKey(username);
+    let user;
+    try {
+      user = (await signInWithEmailAndPassword(auth, emailDe(key), pass)).user;
+    } catch (e) {
+      if (!ERROS_LOGIN.includes(e.code)) throw e;
+      // Primeiro login depois da troca de sistema (ou acesso liberado pelo admin): cria a conta e vincula
+      try { user = (await createUserWithEmailAndPassword(auth, emailDe(key), pass)).user; }
+      catch (e2) {
+        if (e2.code === 'auth/email-already-in-use') { erro('Usuário ou senha incorretos.'); return; }
+        if (e2.code === 'auth/weak-password') { erro('Senha curta demais pro sistema novo. Peça a um admin pra liberar um novo acesso.'); return; }
+        throw e2;
+      }
+      try { await vincularConta(user, key, pass); }
+      catch { await user.delete().catch(()=>{}); erro('Usuário ou senha incorretos.'); return; }
+    }
+    // Conta criada mas o vínculo não terminou (ex: caiu a internet no meio): tenta de novo
+    if (!(await get(ref(db, `contas/${user.uid}`))).exists()) {
+      try { await vincularConta(user, key, pass); }
+      catch { await signOut(auth); erro('Essa conta não está ligada a nenhum jogador. Fale com um admin.'); return; }
+    }
+    await entrar(user);
+  } catch(e) {
+    console.error(e);
+    erro(e.code === 'auth/too-many-requests' ? 'Muitas tentativas. Espere alguns minutos.' : 'Erro de conexão. Tente novamente.');
+  }
+  finally { authOcupado = false; btn.disabled=false; btn.textContent='Entrar'; }
 };
 window.doRegister = async () => {
   clearAuthErrors();
@@ -390,63 +442,90 @@ window.doRegister = async () => {
   const pass     = document.getElementById('reg-pass').value;
   const pass2    = document.getElementById('reg-pass2').value;
   let ok=true;
-  if (!username||username.length<2)  { document.getElementById('reg-user-err').textContent='Mínimo 2 caracteres'; document.getElementById('reg-user').classList.add('error'); ok=false; }
-  if (username.length>20)            { document.getElementById('reg-user-err').textContent='Máximo 20 caracteres'; document.getElementById('reg-user').classList.add('error'); ok=false; }
+  if (!/^[A-Za-z0-9]{2,20}$/.test(username)) { document.getElementById('reg-user-err').textContent='De 2 a 20 letras ou números (sem acento nem espaço)'; document.getElementById('reg-user').classList.add('error'); ok=false; }
   if (!pass||pass.length<6)          { document.getElementById('reg-pass-err').textContent='Mínimo 6 caracteres'; document.getElementById('reg-pass').classList.add('error'); ok=false; }
   if (pass!==pass2)                  { document.getElementById('reg-pass2-err').textContent='As senhas não coincidem'; document.getElementById('reg-pass2').classList.add('error'); ok=false; }
   if (!ok) return;
   const btn=document.getElementById('btn-reg');
   btn.disabled=true; btn.textContent='Criando...';
+  authOcupado = true;
+  const emUso = () => { document.getElementById('reg-user-err').textContent='Este nome já está em uso. Se é você, use "Entrar" com a senha de sempre.'; document.getElementById('reg-user').classList.add('error'); };
   try {
-    const userKey = toKey(username);
-    const snap = await get(ref(db, `bolao/users/${userKey}`));
-    if (snap.exists()) { document.getElementById('reg-user-err').textContent='Este nome já está em uso'; document.getElementById('reg-user').classList.add('error'); return; }
-    const hash = await hashPassword(pass);
-    const usersSnap = await get(ref(db,'bolao/users'));
-    const isFirstUser = !usersSnap.exists() || !Object.keys(usersSnap.val()||{}).length;
-    await set(ref(db, `bolao/users/${userKey}`), {displayName: username, passwordHash: hash, isAdmin: isFirstUser, createdAt: Date.now()});
-    currentUser = {username, key: userKey, isAdmin: isFirstUser};
-    localStorage.setItem('bolao_session', JSON.stringify(currentUser));
-    showToast(isFirstUser ? 'Conta criada! Você é o admin 🔑' : `Bem-vindo, ${username}! ⚽`);
-    bootApp();
-  } catch(e) { document.getElementById('reg-global-err').textContent='Erro ao criar conta. Tente novamente.'; }
-  finally { btn.disabled=false; btn.textContent='Criar Conta'; }
+    const key = toKey(username);
+    let user;
+    try { user = (await createUserWithEmailAndPassword(auth, emailDe(key), pass)).user; }
+    catch (e) { if (e.code === 'auth/email-already-in-use') { emUso(); return; } throw e; }
+    // Conta nova entra sem admin e sem aprovação: as regras do banco recusam qualquer outra coisa
+    try {
+      await update(ref(db), {
+        [`bolao/users/${key}/displayName`]: username,
+        [`bolao/users/${key}/uid`]: user.uid,
+        [`bolao/users/${key}/createdAt`]: serverTimestamp(),
+        [`contas/${user.uid}`]: key,
+      });
+    } catch { await user.delete().catch(()=>{}); emUso(); return; }
+    await entrar(user);
+  } catch(e) { console.error(e); document.getElementById('reg-global-err').textContent='Erro ao criar conta. Tente novamente.'; }
+  finally { authOcupado = false; btn.disabled=false; btn.textContent='Criar Conta'; }
 };
-window.doLogout = () => {
-  currentUser=null; localStorage.removeItem('bolao_session'); clearInterval(countdownTimer); clearInterval(syncTimer);
-  document.getElementById('app').style.display='none';
-  document.getElementById('auth-screen').style.display='flex';
-  clearAuthErrors();
-  document.getElementById('login-user').value='';
-  document.getElementById('login-pass').value='';
+window.doLogout = async () => {
+  try { localStorage.removeItem('bolao_session'); } catch {}
+  await signOut(auth);
+  location.reload(); // derruba todos os ouvintes do banco de uma vez
 };
 
+function mostrarTelaAuth(aguardando) {
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('auth-forms').style.display  = aguardando ? 'none' : 'block';
+  document.getElementById('pending-box').style.display = aguardando ? 'block' : 'none';
+}
+
+// Usuário logado no Firebase Auth → descobre qual jogador ele é e acompanha o próprio cadastro (aprovação, admin)
+let pararOuvirCadastro = null;
+async function entrar(user) {
+  const conta = await get(ref(db, `contas/${user.uid}`));
+  if (!conta.exists()) { await signOut(auth); mostrarTelaAuth(false); return; }
+  const key = conta.val();
+  pararOuvirCadastro?.();
+  pararOuvirCadastro = onValue(ref(db, `bolao/users/${key}`), snap => {
+    const u = snap.val();
+    if (!u || u.uid !== user.uid) { doLogout(); return; } // conta recusada/desvinculada por um admin
+    const antes = currentUser;
+    currentUser = {username: u.displayName, key, uid: user.uid, isAdmin: u.isAdmin === true};
+    if (u.aprovado !== true) { if (appIniciado) location.reload(); else mostrarTelaAuth(true); return; }
+    if (!appIniciado) bootApp();
+    else if (antes?.isAdmin !== currentUser.isAdmin) { updateAdminTab(); render(); }
+  });
+}
+
+onAuthStateChanged(auth, user => {
+  if (authOcupado) return;
+  if (user) entrar(user).catch(e => { console.error(e); mostrarTelaAuth(false); });
+  else mostrarTelaAuth(false);
+});
+
 function bootApp() {
+  appIniciado = true;
+  document.getElementById('loading-screen').style.display='none';
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app').style.display='block';
-  atualizarCabecalho();
   document.getElementById('user-nm-hdr').textContent = currentUser.username;
   currentTab = 'ranking';
-  get(ref(db, `bolao/users/${currentUser.key}`)).then(snap=>{
-    if (snap.exists()) {
-      const freshAdmin = snap.val().isAdmin || false;
-      if (freshAdmin !== currentUser.isAdmin) {
-        currentUser.isAdmin = freshAdmin;
-        localStorage.setItem('bolao_session', JSON.stringify(currentUser));
-        updateAdminTab(); render();
-      }
-    }
-  });
+  startListening();
   updateAdminTab();
   iniciarChat();
   ['ranking','jogos','palpitar','admin'].forEach(t=>{ const el=document.getElementById(`tab-${t}`); if(el) el.classList.toggle('active', t===currentTab); });
   render();
-  // Sem force: a própria sync decide se está na hora (não repete busca à toa)
-  syncFromApi(false);
+  // A sync roda quando a primeira carga do banco chegar (startListening): antes disso não dá pra saber se está na hora
   clearInterval(syncTimer);
   syncTimer = setInterval(()=>syncFromApi(false), 60000); // checagem barata: só busca quando está na hora
   clearInterval(countdownTimer);
-  countdownTimer = setInterval(()=>{ if(currentTab==='palpitar' && !isTypingInPalpite()) render(); }, 30000);
+  countdownTimer = setInterval(()=>{
+    atualizarOuvintesPalpites(); // jogo que começou: passa a ler os palpites de todo mundo
+    if(currentTab==='palpitar' && !isTypingInPalpite()) render();
+  }, 30000);
 }
 
 // Bolinha do usuário no topo: foto do perfil, senão emoji, senão a inicial
@@ -492,6 +571,7 @@ function startListening() {
               lastLiveSync: raw.mp?.lastLiveSync || null, config: raw.mp?.config || {},
               copaJogos: raw.jogos || {}};
     if (!dbData.users) dbData.users={};
+    atualizarOuvintesPalpites();
     // Primeira carga do banco: agora já dá pra saber se a sync está atrasada
     if (!primeiraCarga) { primeiraCarga = true; if (currentUser) syncFromApi(false); }
     if (currentUser && !isTypingInPalpite()) render();
@@ -505,6 +585,47 @@ function startListening() {
       if (bar.classList.contains('offline')) setSyncBar('','');
     } else if (jaConectou) setSyncBar('offline','⚠️ Sem conexão — tentando reconectar...');
   });
+}
+
+// ── Palpites escondidos até o apito ──
+// Antes do kickoff as regras do banco só deixam cada um ler o próprio palpite; depois, o de todo mundo.
+// Um ouvinte por jogo (ou por turno, nas eleições), trocado de "meu" pra "todos" quando o prazo passa.
+let palpitesVivos = {};    // {jogoId: {nome: {casa, fora}}}
+let eleicoesVivos = {};    // {t1|t2: {key: {pres, gov}}}
+const ouvintes = {};       // {caminho-base: {modo, parar}}
+let renderAgendado = false;
+function agendarRender() {
+  if (renderAgendado) return;
+  renderAgendado = true;
+  setTimeout(() => { renderAgendado = false; if (currentUser && !isTypingInPalpite()) render(); }, 50);
+}
+function ouvir(base, prazo, meuSub, guardar) {
+  const modo = prazo && Date.now() >= prazo ? 'todos' : 'meu';
+  if (ouvintes[base]?.modo === modo) return;
+  ouvintes[base]?.parar();
+  const caminho = modo === 'todos' ? base : `${base}/${meuSub}`;
+  const o = {modo};
+  o.parar = onValue(ref(db, caminho), snap => {
+    guardar(modo === 'todos' ? (snap.val() || {}) : (snap.exists() ? {[meuSub]: snap.val()} : {}));
+    agendarRender();
+  }, () => { if (ouvintes[base] === o) delete ouvintes[base]; }); // negado (relógio adiantado): tenta de novo no próximo ciclo
+  ouvintes[base] = o;
+}
+function atualizarOuvintesPalpites() {
+  if (!currentUser) return;
+  Object.entries(dbData.jogos || {}).forEach(([id, j]) =>
+    ouvir(`palpites/${id}`, j.kickoff, currentUser.username, v => { palpitesVivos[id] = v; }));
+  const lockMs = dbData.eleicoes?.config?.lockMs || {};
+  ['t1','t2'].forEach(t =>
+    ouvir(`eleicoesPalpites/${t}`, lockMs[t], currentUser.key, v => { eleicoesVivos[t] = v; }));
+}
+// Monta os palpites das eleições no formato que o eleicoes.js usa: {key: {pres: {t1, t2}, gov: {t1, t2}}}
+function palpitesEleicoes() {
+  const out = {};
+  Object.entries(eleicoesVivos).forEach(([t, porKey]) =>
+    Object.entries(porKey || {}).forEach(([key, races]) =>
+      Object.entries(races || {}).forEach(([race, p]) => { ((out[key] ??= {})[race] ??= {})[t] = p; })));
+  return out;
 }
 
 // Timestamp → data/hora em BRT (UTC-3)
@@ -611,7 +732,7 @@ function gravarJogo(j) {
       ...base, ...j,
       resultado: j.resultado || base.resultado || {casa:null, fora:null},
       status: manual ? base.status : j.status,
-      palpites: base.palpites || {},
+      atualizadoPor: currentUser.uid, // as regras exigem: fica registrado quem gravou
     };
   });
 }
@@ -942,7 +1063,7 @@ function htmlChatLista() {
       <div class="chat-balao">
         <div class="chat-nome">${esc(m.nome)} ${timeTag(m.nome)}</div>
         ${texto}
-        <div class="chat-hora">${fmtHoraChat(m.ts)}${podeApagar ? ` · <button class="chat-del" onclick="apagarMsg('${m.id}')">apagar</button>` : ''}</div>
+        <div class="chat-hora">${fmtHoraChat(m.ts)}${podeApagar ? ` · <button class="chat-del" onclick="apagarMsg(${js(m.id)})">apagar</button>` : ''}</div>
       </div>
     </div>`;
   }).join('');
@@ -978,7 +1099,12 @@ window.enviarMsg = async () => {
   chatUltimoEnvio = Date.now();
   input.value = ''; chatDraft = '';
   try {
-    await push(ref(db, 'chat/mensagens'), {nome: currentUser.username, key: currentUser.key, texto, ts: serverTimestamp()});
+    // chatUltimo vai junto: as regras recusam mensagem a menos de 1s da anterior da mesma conta
+    const id = push(ref(db, 'chat/mensagens')).key;
+    await update(ref(db), {
+      [`chat/mensagens/${id}`]: {nome: currentUser.username, key: currentUser.key, texto, ts: serverTimestamp()},
+      [`chatUltimo/${currentUser.uid}`]: serverTimestamp(),
+    });
   } catch (e) {
     console.error(e);
     input.value = chatDraft = texto; // devolve o texto pra não perder
@@ -997,11 +1123,11 @@ function renderRanking() {
   const M=['🥇','🥈','🥉'], C=['gold','silver','bronze'];
   let h=`<div class="sec-title">🏆 Classificação</div><div class="podium-grid">`;
   sorted.slice(0,3).forEach(([n,p],i)=>{
-    h+=`<div class="podium-card ${C[i]}" style="cursor:pointer" onclick="showPlayerModal('${n}')"><span class="p-medal">${M[i]}</span><div style="font-size:16px">${emo(n)}</div><div class="p-name">${n} ${timeTag(n)}</div><div class="p-pts">${p}</div><div class="p-lbl">pts</div></div>`;
+    h+=`<div class="podium-card ${C[i]}" style="cursor:pointer" onclick="showPlayerModal(${js(n)})"><span class="p-medal">${M[i]}</span><div style="font-size:16px">${emo(n)}</div><div class="p-name">${esc(n)} ${timeTag(n)}</div><div class="p-pts">${p}</div><div class="p-lbl">pts</div></div>`;
   });
   h+=`</div><div class="rank-list">`;
   sorted.slice(3).forEach(([n,p],i)=>{
-    h+=`<div class="rank-item" style="cursor:pointer" onclick="showPlayerModal('${n}')"><span class="rank-pos">${i+4}º</span><span style="font-size:16px">${emo(n)}</span><span class="rank-name">${n} ${timeTag(n)}</span><div style="text-align:right"><div class="rank-pts">${p}</div><div style="font-size:10px;color:var(--text2)">pontos</div></div></div>`;
+    h+=`<div class="rank-item" style="cursor:pointer" onclick="showPlayerModal(${js(n)})"><span class="rank-pos">${i+4}º</span><span style="font-size:16px">${emo(n)}</span><span class="rank-name">${esc(n)} ${timeTag(n)}</span><div style="text-align:right"><div class="rank-pts">${p}</div><div style="font-size:10px;color:var(--text2)">pontos</div></div></div>`;
   });
   h+=`</div>`;
 
@@ -1020,7 +1146,7 @@ function renderRanking() {
   const vid=Object.entries(exact).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   if (!vid.length) h+=`<div style="color:var(--text2);font-size:12px">Nenhum placar exato ainda.</div>`;
   vid.forEach(([n,c],i)=>{
-    h+=`<div class="vidente-item"><span style="font-weight:600;font-size:13px">${['🥇','🥈','🥉'][i]||''} ${emo(n)} ${n}</span><div style="display:flex;align-items:baseline;gap:3px"><span class="vidente-count">${c}</span><span style="font-size:10px;color:var(--text2)">exatos</span></div></div>`;
+    h+=`<div class="vidente-item"><span style="font-weight:600;font-size:13px">${['🥇','🥈','🥉'][i]||''} ${emo(n)} ${esc(n)}</span><div style="display:flex;align-items:baseline;gap:3px"><span class="vidente-count">${c}</span><span style="font-size:10px;color:var(--text2)">exatos</span></div></div>`;
   });
   h+=`</div><div class="pts-legend"><div class="pts-legend-title">📋 Sistema de Pontuação</div><div class="pts-grid">`;
   [['Placar exato','25pts','pts-exact'],['Vencedor + gols do vencedor','18pts','pts-vg'],['Vencedor + diferença de gols','15pts','pts-diff'],['Empate correto','15pts','pts-draw'],['Vencedor + gols do perdedor','12pts','pts-lg'],['Acertou o vencedor','10pts','pts-win'],['Previu empate (mas não foi)','4pts','pts-almost'],['Errou tudo','0pts','pts-zero']].forEach(([l,p,c])=>{
@@ -1044,8 +1170,8 @@ function renderMatchCard(jogo, opts={}) {
                : isDone ? `<span class="badge badge-enc">✓ Encerrado</span>`
                : aberto ? `<span class="badge badge-pend">Aberto</span>`
                :          `<span class="badge badge-fechado">🔒 Fechado</span>`;
-  const c = temRes ? jogo.resultado.casa : '-';
-  const f = temRes ? jogo.resultado.fora : '-';
+  const c = temRes ? esc(jogo.resultado.casa) : '-';
+  const f = temRes ? esc(jogo.resultado.fora) : '-';
   const multi = getMulti(jogo.fase);
   let h=`<div class="match-card ${opts.highlight?'match-card-today':''}">
     <div class="match-hdr">
@@ -1054,9 +1180,9 @@ function renderMatchCard(jogo, opts={}) {
     </div>
     <div class="match-body">
       <div class="scoreboard">
-        <div class="team-info"><div class="team-flag">${escudo(jogo.casa, jogo.logoCasa)}</div><div class="team-name">${jogo.casa}</div></div>
+        <div class="team-info"><div class="team-flag">${escudo(jogo.casa, jogo.logoCasa)}</div><div class="team-name">${esc(jogo.casa)}</div></div>
         <div class="score-box"><div class="score-num">${c}</div><div class="score-div">x</div><div class="score-num">${f}</div></div>
-        <div class="team-info"><div class="team-flag">${escudo(jogo.fora, jogo.logoFora)}</div><div class="team-name">${jogo.fora}</div></div>
+        <div class="team-info"><div class="team-flag">${escudo(jogo.fora, jogo.logoFora)}</div><div class="team-name">${esc(jogo.fora)}</div></div>
       </div>
     </div>`;
   const pals=Object.entries(jogo.palpites||{});
@@ -1065,8 +1191,8 @@ function renderMatchCard(jogo, opts={}) {
     pals.forEach(([jogador,p])=>{
       const r = temRes ? calcPts(jogo.resultado,p) : null;
       const ptsFinais = r ? Math.round(r.pts * multi) : null;
-      const scoreStr = aberto ? '?x?' : `${p.casa}x${p.fora}`;
-      h+=`<div class="pal-item"><span class="pal-player">${emo(jogador)} ${jogador}</span><div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px"><span class="pal-score">${scoreStr}</span>${r ? `<span style="font-size:10px" class="${ptsClass(r.tipo)}">${ptsLabel(r.tipo)} ${ptsFinais}pts${multi>1?' ×'+multi:''}</span>` : ''}</div></div>`;
+      const scoreStr = aberto ? '?x?' : `${esc(p.casa)}x${esc(p.fora)}`;
+      h+=`<div class="pal-item"><span class="pal-player">${emo(jogador)} ${esc(jogador)}</span><div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px"><span class="pal-score">${scoreStr}</span>${r ? `<span style="font-size:10px" class="${ptsClass(r.tipo)}">${ptsLabel(r.tipo)} ${ptsFinais}pts${multi>1?' ×'+multi:''}</span>` : ''}</div></div>`;
     });
     h+=`</div></div>`;
   }
@@ -1152,8 +1278,8 @@ function renderJogos() {
     h += `
       <button
         class="filter-btn ${filterFase===f?'active':''}"
-        onclick="setFilter('${f}')">
-        ${f}
+        onclick="setFilter(${js(f)})">
+        ${esc(f)}
       </button>
     `;
   });
@@ -1181,7 +1307,7 @@ function renderJogos() {
         );
 
       const dayId =
-        'past_' + dia.replace(/-/g,'');
+        'past_' + String(dia).replace(/[^0-9]/g,'');
 
       const temRes =
         lista.some(
@@ -1260,7 +1386,7 @@ function renderJogos() {
         );
 
       const dayId =
-        'fut_' + dia.replace(/-/g,'');
+        'fut_' + String(dia).replace(/[^0-9]/g,'');
 
       const temAberto =
         lista.some(j => jogoAberto(j));
@@ -1341,24 +1467,24 @@ function renderPalpitar() {
       h += `<div class="palpitar-card">
         <div class="pal-hdr"><span style="font-weight:600;font-size:11px;color:var(--gold)">${rotulo(jogo)}</span><span style="font-size:10px;color:var(--text2)">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span></div>
         <div class="pal-match-row">
-          <div class="pal-team"><div class="pal-flag">${escudo(jogo.casa, jogo.logoCasa)}</div><div class="pal-name">${jogo.casa}</div></div>
+          <div class="pal-team"><div class="pal-flag">${escudo(jogo.casa, jogo.logoCasa)}</div><div class="pal-name">${esc(jogo.casa)}</div></div>
           <span style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text2)">VS</span>
-          <div class="pal-team"><div class="pal-flag">${escudo(jogo.fora, jogo.logoFora)}</div><div class="pal-name">${jogo.fora}</div></div>
+          <div class="pal-team"><div class="pal-flag">${escudo(jogo.fora, jogo.logoFora)}</div><div class="pal-name">${esc(jogo.fora)}</div></div>
         </div>
         <div class="my-pal-section">
-          <div class="my-pal-label">${emo(currentUser.username)} ${currentUser.username} — seu palpite</div>
+          <div class="my-pal-label">${emo(currentUser.username)} ${esc(currentUser.username)} — seu palpite</div>
           <div class="my-pal-row">
-            <input class="sc-in" type="number" min="0" max="20" placeholder="0" id="pc_${jogo._id}"
-              value="${palpiteDrafts[jogo._id]?.casa ?? (meu!=null?meu.casa:'')}"
-              oninput="onPalpiteDraft('${jogo._id}','casa',this.value)">
+            <input class="sc-in" type="number" min="0" max="20" placeholder="0" id="pc_${esc(jogo._id)}"
+              value="${esc(palpiteDrafts[jogo._id]?.casa ?? (meu!=null?meu.casa:''))}"
+              oninput="onPalpiteDraft(${js(jogo._id)},'casa',this.value)">
             <span class="sc-x">x</span>
-            <input class="sc-in" type="number" min="0" max="20" placeholder="0" id="pf_${jogo._id}"
-              value="${palpiteDrafts[jogo._id]?.fora ?? (meu!=null?meu.fora:'')}"
-              oninput="onPalpiteDraft('${jogo._id}','fora',this.value)">
-            <button class="btn-salvar" onclick="salvarPalpite('${jogo._id}')">Salvar</button>
+            <input class="sc-in" type="number" min="0" max="20" placeholder="0" id="pf_${esc(jogo._id)}"
+              value="${esc(palpiteDrafts[jogo._id]?.fora ?? (meu!=null?meu.fora:''))}"
+              oninput="onPalpiteDraft(${js(jogo._id)},'fora',this.value)">
+            <button class="btn-salvar" onclick="salvarPalpite(${js(jogo._id)})">Salvar</button>
             ${tempo ? `<span class="countdown">⏳ ${tempo}</span>` : ''}
           </div>
-          ${meu!=null ? `<div style="font-size:10px;color:var(--text2);margin-top:6px">✅ Palpite atual: <strong>${meu.casa}x${meu.fora}</strong></div>` : ''}
+          ${meu!=null ? `<div style="font-size:10px;color:var(--text2);margin-top:6px">✅ Palpite atual: <strong>${esc(meu.casa)}x${esc(meu.fora)}</strong></div>` : ''}
         </div>
       </div>`;
     });
@@ -1377,12 +1503,12 @@ function renderPalpitar() {
           <span style="font-size:10px;color:var(--text2)">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span>
         </div>
         <div class="pal-match-row">
-          <div class="pal-team"><div class="pal-flag">${escudo(jogo.casa, jogo.logoCasa)}</div><div class="pal-name">${jogo.casa}</div></div>
-          ${jogo.resultado?.casa!=null ? `<div style="text-align:center"><div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--text)">${jogo.resultado.casa} x ${jogo.resultado.fora}</div>${isLive?'<div style="font-size:10px;color:#f87171">● AO VIVO</div>':''}</div>` : `<span style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text2)">VS</span>`}
-          <div class="pal-team"><div class="pal-flag">${escudo(jogo.fora, jogo.logoFora)}</div><div class="pal-name">${jogo.fora}</div></div>
+          <div class="pal-team"><div class="pal-flag">${escudo(jogo.casa, jogo.logoCasa)}</div><div class="pal-name">${esc(jogo.casa)}</div></div>
+          ${jogo.resultado?.casa!=null ? `<div style="text-align:center"><div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--text)">${esc(jogo.resultado.casa)} x ${esc(jogo.resultado.fora)}</div>${isLive?'<div style="font-size:10px;color:#f87171">● AO VIVO</div>':''}</div>` : `<span style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text2)">VS</span>`}
+          <div class="pal-team"><div class="pal-flag">${escudo(jogo.fora, jogo.logoFora)}</div><div class="pal-name">${esc(jogo.fora)}</div></div>
         </div>
         <div class="my-pal-section">
-          ${meu!=null ? `<div style="font-size:12px;color:var(--text2)">✅ Seu palpite: <strong style="color:var(--text)">${meu.casa}x${meu.fora}</strong></div>` : `<div class="locked-msg">🔒 Prazo encerrado — palpite não registrado</div>`}
+          ${meu!=null ? `<div style="font-size:12px;color:var(--text2)">✅ Seu palpite: <strong style="color:var(--text)">${esc(meu.casa)}x${esc(meu.fora)}</strong></div>` : `<div class="locked-msg">🔒 Prazo encerrado — palpite não registrado</div>`}
         </div>
       </div>`;
     });
@@ -1393,15 +1519,10 @@ function renderPalpitar() {
 function renderAdmin() {
   const isAdmin = currentUser?.isAdmin;
   if (!isAdmin) {
-    return `<div style="text-align:center;padding:48px 20px"><div style="font-size:64px;margin-bottom:16px">🚨</div><div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--red);letter-spacing:2px;margin-bottom:8px">ÁREA RESTRITA</div><div style="font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.7">Ei, <strong style="color:var(--text)">${currentUser.username}</strong>! Tentando espiar o admin? 👀<br>Isso aqui é só pra quem manda no pedaço.</div><div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--gold);letter-spacing:1px;margin-bottom:20px">🔒 Acesso negado. Tente de novo em: nunca.</div><button class="btn-salvar" onclick="showTab('palpitar')">✏️ Ir Palpitar</button></div>`;
+    return `<div style="text-align:center;padding:48px 20px"><div style="font-size:64px;margin-bottom:16px">🚨</div><div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--red);letter-spacing:2px;margin-bottom:8px">ÁREA RESTRITA</div><div style="font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.7">Ei, <strong style="color:var(--text)">${esc(currentUser.username)}</strong>! Tentando espiar o admin? 👀<br>Isso aqui é só pra quem manda no pedaço.</div><div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--gold);letter-spacing:1px;margin-bottom:20px">🔒 Acesso negado. Tente de novo em: nunca.</div><button class="btn-salvar" onclick="showTab('palpitar')">✏️ Ir Palpitar</button></div>`;
   }
   let h=`<div class="sec-title">⚙️ Admin</div>`;
   const ls = dbData.lastSync ? new Date(dbData.lastSync).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : 'nunca';
-  const hojeAdmin = todayBRT();
-  const futurosComResultado = getJogos().filter(j => j.data > hojeAdmin && j.resultado?.casa != null);
-  const jogosRawAdmin = Object.entries(dbData.jogos||{}).map(([id,j])=>({...j,_id:id}));
-  const gruposDuplicados = agruparJogos(jogosRawAdmin).filter(g => g.items.length > 1);
-  const totalCopiasExtra = gruposDuplicados.reduce((s,g)=>s+g.items.length-1, 0);
   h+=`<div class="admin-box"><div class="admin-box-title">🔄 Sincronização</div>
     <div style="font-size:12px;color:var(--text2);background:var(--surface2);border-radius:7px;padding:10px 12px;line-height:1.7"><strong style="color:var(--text)">Última sync:</strong> ${ls} &nbsp;·&nbsp; <strong style="color:var(--text)">Jogos:</strong> ${getJogos().length}<br>Fonte: ESPN (grátis, sem chave). Agenda a cada 30 min e placar ao vivo a cada 2 min.<br>⚠️ A ESPN cobre Série A/B, Copa do Brasil, Copa do Nordeste, amistosos e Eliminatórias. <strong style="color:var(--text)">Série C/D e Pernambucano não vêm</strong> (quase todos os jogos do Santa Cruz): cadastre em "Adicionar Jogo Manual".</div>
     <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
@@ -1412,8 +1533,8 @@ function renderAdmin() {
   if (semRes.length) {
     h+=`<div class="admin-box"><div class="admin-box-title">📝 Inserir Resultado Manual</div><div style="font-size:11px;color:var(--text2);margin-bottom:10px">Use para corrigir ou adiantar resultado antes da API atualizar.</div>`;
     semRes.slice(0,15).forEach(jogo=>{
-      h+=`<div class="res-row"><div class="res-match-name">${escudo(jogo.casa, jogo.logoCasa)} ${jogo.casa} x ${jogo.fora} ${escudo(jogo.fora, jogo.logoFora)} <span style="color:var(--text2);font-weight:400"> — ${fmtDate(jogo.data)} · ${rotulo(jogo)}</span></div>
-        <div class="res-inputs"><span class="res-team">${jogo.casa}</span><input class="res-in" type="number" min="0" max="20" placeholder="0" id="rc_${jogo._id}"><span class="res-x">x</span><input class="res-in" type="number" min="0" max="20" placeholder="0" id="rf_${jogo._id}"><span class="res-team">${jogo.fora}</span><button class="btn-sm" onclick="salvarRes('${jogo._id}')">Salvar</button></div></div>`;
+      h+=`<div class="res-row"><div class="res-match-name">${escudo(jogo.casa, jogo.logoCasa)} ${esc(jogo.casa)} x ${esc(jogo.fora)} ${escudo(jogo.fora, jogo.logoFora)} <span style="color:var(--text2);font-weight:400"> — ${fmtDate(jogo.data)} · ${rotulo(jogo)}</span></div>
+        <div class="res-inputs"><span class="res-team">${esc(jogo.casa)}</span><input class="res-in" type="number" min="0" max="20" placeholder="0" id="rc_${esc(jogo._id)}"><span class="res-x">x</span><input class="res-in" type="number" min="0" max="20" placeholder="0" id="rf_${esc(jogo._id)}"><span class="res-team">${esc(jogo.fora)}</span><button class="btn-sm" onclick="salvarRes(${js(jogo._id)})">Salvar</button></div></div>`;
     });
     h+=`</div>`;
   }
@@ -1421,22 +1542,34 @@ function renderAdmin() {
   if (comRes.length) {
     h+=`<div class="admin-box"><div class="admin-box-title">✅ Resultados Registrados</div>`;
     comRes.forEach(jogo=>{
-      h+=`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:7px;padding:8px 11px;margin-bottom:5px;flex-wrap:wrap;gap:6px"><div><span style="font-weight:600;font-size:12px">${escudo(jogo.casa, jogo.logoCasa)} ${jogo.casa} ${jogo.resultado.casa}x${jogo.resultado.fora} ${jogo.fora} ${escudo(jogo.fora, jogo.logoFora)}</span><span style="font-size:10px;color:var(--text2);display:block">${fmtDate(jogo.data)} · ${rotulo(jogo)}</span></div><button class="btn-danger" onclick="resetRes('${jogo._id}')">✏️ Editar</button></div>`;
+      h+=`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:7px;padding:8px 11px;margin-bottom:5px;flex-wrap:wrap;gap:6px"><div><span style="font-weight:600;font-size:12px">${escudo(jogo.casa, jogo.logoCasa)} ${esc(jogo.casa)} ${esc(jogo.resultado.casa)}x${esc(jogo.resultado.fora)} ${esc(jogo.fora)} ${escudo(jogo.fora, jogo.logoFora)}</span><span style="font-size:10px;color:var(--text2);display:block">${fmtDate(jogo.data)} · ${rotulo(jogo)}</span></div><button class="btn-danger" onclick="resetRes(${js(jogo._id)})">✏️ Editar</button></div>`;
     });
     h+=`</div>`;
   }
   const users = Object.entries(dbData.users||{});
-  h+=`<div class="admin-box"><div class="admin-box-title">👥 Usuários (${users.length})</div>`;
-  if (!users.length) h+=`<div style="color:var(--text2);font-size:12px">Nenhum usuário cadastrado.</div>`;
-  users.sort((a,b)=>a[0]>b[0]?1:-1).forEach(([key,u])=>{
+  const pendentes = users.filter(([,u]) => u.aprovado !== true && u.uid);
+  if (pendentes.length) {
+    h+=`<div class="admin-box"><div class="admin-box-title">🙋 Aguardando aprovação (${pendentes.length})</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Só aprove quem você sabe que é da galera. Antes de aprovar, a pessoa não vê nada do bolão.</div>`;
+    pendentes.forEach(([key,u])=>{
+      h+=`<div class="user-list-item"><div><span class="user-list-name">${esc(u.displayName)}</span><span class="user-list-meta">Pediu em ${new Date(u.createdAt).toLocaleDateString('pt-BR')}</span></div><div style="display:flex;align-items:center;gap:6px"><button class="btn-sm" style="font-size:10px;padding:4px 9px" onclick="aprovarUsuario(${js(key)})">✅ Aprovar</button><button class="btn-danger" style="padding:4px 9px;font-size:10px" onclick="recusarUsuario(${js(key)})">❌ Recusar</button></div></div>`;
+    });
+    h+=`</div>`;
+  }
+  const membros = users.filter(([,u]) => u.aprovado === true);
+  h+=`<div class="admin-box"><div class="admin-box-title">👥 Usuários (${membros.length})</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px">"🔓 Novo acesso" serve pra quem esqueceu a senha: desliga o login atual e a pessoa entra de novo com uma senha nova.</div>`;
+  if (!membros.length) h+=`<div style="color:var(--text2);font-size:12px">Nenhum usuário cadastrado.</div>`;
+  membros.sort((a,b)=>a[0]>b[0]?1:-1).forEach(([key,u])=>{
     const isMe = key===currentUser.key;
-    h+=`<div class="user-list-item"><div><span class="user-list-name">${emo(u.displayName)} ${u.displayName}${isMe?'<span style="font-size:10px;color:var(--text2)"> (você)</span>':''}</span><span class="user-list-meta">Desde ${new Date(u.createdAt).toLocaleDateString('pt-BR')}</span></div><div style="display:flex;align-items:center;gap:6px">${u.isAdmin?`<span class="admin-badge">Admin</span>`:''} ${isAdmin&&!isMe&&!u.isAdmin?`<button class="btn-sm" style="font-size:10px;padding:4px 9px" onclick="toggleAdmin('${key}',true)">+Admin</button>`:''} ${isAdmin&&!isMe&&u.isAdmin?`<button class="btn-danger" style="padding:4px 9px;font-size:10px" onclick="toggleAdmin('${key}',false)">−Admin</button>`:''}</div></div>`;
+    const situacao = u.liberado ? ' · 🔓 aguardando novo login' : !u.uid ? ' · ainda não entrou no login novo' : '';
+    h+=`<div class="user-list-item"><div><span class="user-list-name">${emo(u.displayName)} ${esc(u.displayName)}${isMe?'<span style="font-size:10px;color:var(--text2)"> (você)</span>':''}</span><span class="user-list-meta">Desde ${new Date(u.createdAt).toLocaleDateString('pt-BR')}${situacao}</span></div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${u.isAdmin?`<span class="admin-badge">Admin</span>`:''} ${isAdmin&&!isMe&&!u.isAdmin?`<button class="btn-sm" style="font-size:10px;padding:4px 9px" onclick="toggleAdmin(${js(key)},true)">+Admin</button>`:''} ${isAdmin&&!isMe&&u.isAdmin?`<button class="btn-danger" style="padding:4px 9px;font-size:10px" onclick="toggleAdmin(${js(key)},false)">−Admin</button>`:''} ${isAdmin&&!isMe&&u.uid?`<button class="btn-danger" style="padding:4px 9px;font-size:10px" onclick="liberarAcesso(${js(key)})">🔓 Novo acesso</button>`:''}</div></div>`;
   });
   h+=`</div>`;
   // Sugestões: nossos 4 times + adversários que já apareceram + seleções conhecidas
   const sugTimes = [...new Set([...NOSSOS_TIMES.map(t=>t.nome), ...getJogos().flatMap(j=>[j.casa,j.fora]), ...Object.keys(FLAGS)])];
   const sugComp  = [...new Set(['Brasileirão Série A','Brasileirão Série B','Brasileirão Série C','Brasileirão Série D','Copa do Brasil','Copa do Nordeste','Pernambucano','Eliminatórias','Amistoso', ...getJogos().map(j=>j.competicao).filter(Boolean)])];
-  h+=`<datalist id="dl_times">${sugTimes.map(t=>`<option value="${t}">`).join('')}</datalist><datalist id="dl_comp">${sugComp.map(c=>`<option value="${c}">`).join('')}</datalist>`;
+  h+=`<datalist id="dl_times">${sugTimes.map(t=>`<option value="${esc(t)}">`).join('')}</datalist><datalist id="dl_comp">${sugComp.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`;
   h+=`<div class="admin-box"><div class="admin-box-title">➕ Adicionar Jogo Manual</div>
     <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Use quando a API não tiver o jogo ou para adiantar cadastro.</div>
     <div class="form-grid">
@@ -1453,64 +1586,6 @@ function renderAdmin() {
 }
 
 window.forcSync = async () => { showToast('Sincronizando...'); await syncFromApi(true); };
-window.limparResultadosFuturos = async () => {
-  const hoje = todayBRT();
-  const suspeitos = getJogos().filter(j => j.data > hoje && j.resultado?.casa != null);
-  if (!suspeitos.length) { showToast('Nenhum resultado futuro suspeito. ✅'); return; }
-  const ok = confirm(`Encontrados ${suspeitos.length} jogo(s) com data futura mas resultado já preenchido (provável placar fantasma). Limpar todos e reabrir pra palpite?`);
-  if (!ok) return;
-  for (const j of suspeitos) {
-    await update(ref(db, `${MP}/jogos/${j._id}/resultado`), {casa:null, fora:null});
-    await update(ref(db, `${MP}/jogos/${j._id}`), {status:'NS'});
-  }
-  showToast(`${suspeitos.length} resultado(s) futuro(s) limpo(s)! 🧹`);
-};
-window.removerDuplicados = async () => {
-  const jogosRaw = Object.entries(dbData.jogos||{}).map(([id,j])=>({...j,_id:id}));
-  const grupos = agruparJogos(jogosRaw).filter(g => g.items.length > 1);
-  if (!grupos.length) { showToast('Nenhum jogo duplicado encontrado. ✅'); return; }
-  const totalExtra = grupos.reduce((s,g)=>s+g.items.length-1, 0);
-  const ok = confirm(`Encontrados ${grupos.length} jogo(s) com ${totalExtra} cópia(s) duplicada(s). Mesclar palpites na cópia mais completa e apagar as demais? Essa ação não pode ser desfeita.`);
-  if (!ok) return;
-  for (const g of grupos) {
-    let best = g.items[0], bestScore = scoreJogo(best);
-    g.items.slice(1).forEach(item => { const s = scoreJogo(item); if (s > bestScore) { best = item; bestScore = s; } });
-    const palpitesMerged = {};
-    g.items.forEach(item => Object.assign(palpitesMerged, item.palpites||{}));
-    await update(ref(db, `${MP}/jogos/${best._id}`), {palpites: palpitesMerged, fase: bestFase(g.items), casa: best.casa, fora: best.fora});
-    for (const item of g.items) {
-      if (item._id !== best._id) await set(ref(db, `${MP}/jogos/${item._id}`), null);
-    }
-  }
-  showToast(`${totalExtra} jogo(s) duplicado(s) removido(s)! 🧹`);
-};
-window.limparPlaceholders = async () => {
-  const isBracketCode = s => /^\d+[a-z](\/[a-z])*$/i.test((s||'').trim());
-  const jogosRaw = Object.entries(dbData.jogos||{}).map(([id,j])=>({...j,_id:id}));
-  const lixo = jogosRaw.filter(j => isBracketCode(j.casa) || isBracketCode(j.fora));
-
-  if (!lixo.length) { showToast('Nenhum jogo com código de chave (1C, 2F...) encontrado. ✅'); return; }
-
-  const ok = confirm(`Encontrados ${lixo.length} jogo(s) com placeholder de chave (ex: 2F, 1C). Apagar todos? Os palpites desses jogos, se houver, serão tentados migrar pro jogo real correspondente (mesma data/fase).`);
-  if (!ok) return;
-
-  const jogosReais = jogosRaw.filter(j => !isBracketCode(j.casa) && !isBracketCode(j.fora));
-  let migrados = 0;
-
-  for (const j of lixo) {
-    if (j.palpites && Object.keys(j.palpites).length) {
-      const correspondente = jogosReais.find(r => r.data === j.data && r.fase === j.fase);
-      if (correspondente) {
-        const palpitesMerged = { ...correspondente.palpites, ...j.palpites };
-        await update(ref(db, `${MP}/jogos/${correspondente._id}`), { palpites: palpitesMerged });
-        migrados++;
-      }
-    }
-    await set(ref(db, `${MP}/jogos/${j._id}`), null);
-  }
-
-  showToast(`${lixo.length} jogo(s) com código de chave removido(s). Palpites migrados em ${migrados}. 🧹`);
-};
 window.onPalpiteDraft = (id, lado, val) => {
   palpiteDrafts[id] = palpiteDrafts[id] || {};
   palpiteDrafts[id][lado] = val;
@@ -1522,7 +1597,10 @@ window.salvarPalpite = async id => {
   const f = document.getElementById(`pf_${id}`)?.value;
   if (c===''||f==='') { showToast('Preencha os dois placares!', true); return; }
   if (+c<0||+f<0||+c>20||+f>20) { showToast('Placar inválido!', true); return; }
-  await update(ref(db, `${MP}/jogos/${id}/palpites/${currentUser.username}`), {casa:+c, fora:+f});
+  if (!Number.isInteger(+c) || !Number.isInteger(+f)) { showToast('Placar inválido!', true); return; }
+  try {
+    await set(ref(db, `palpites/${id}/${currentUser.username}`), {casa:+c, fora:+f});
+  } catch (e) { console.error(e); showToast('⏰ Não deu pra salvar: o prazo deste jogo encerrou.', true); return; }
   delete palpiteDrafts[id]; // salvou, não precisa mais do rascunho
   showToast(`Palpite salvo! ${c}x${f} ✅`);
 };
@@ -1530,18 +1608,34 @@ window.salvarRes = async id => {
   const c = document.getElementById(`rc_${id}`)?.value;
   const f = document.getElementById(`rf_${id}`)?.value;
   if (c===''||f==='') { showToast('Preencha o placar!', true); return; }
-  await update(ref(db, `${MP}/jogos/${id}/resultado`), {casa:+c, fora:+f});
-  await update(ref(db, `${MP}/jogos/${id}`), {status:'FT'});
+  await update(ref(db, `${MP}/jogos/${id}`), {resultado:{casa:+c, fora:+f}, status:'FT', atualizadoPor: currentUser.uid});
   showToast('Resultado salvo! 🎯');
 };
 window.resetRes = async id => {
-  await update(ref(db, `${MP}/jogos/${id}/resultado`), {casa:null, fora:null});
-  await update(ref(db, `${MP}/jogos/${id}`), {status:'NS'});
+  await update(ref(db, `${MP}/jogos/${id}`), {resultado:null, status:'NS', atualizadoPor: currentUser.uid});
   showToast('Resultado removido para edição.');
 };
 window.toggleAdmin = async (key, makeAdmin) => {
   await update(ref(db, `bolao/users/${key}`), {isAdmin: makeAdmin});
   showToast(makeAdmin ? 'Admin concedido! 🔑' : 'Admin removido.');
+};
+window.aprovarUsuario = async key => {
+  await update(ref(db, `bolao/users/${key}`), {aprovado: true});
+  showToast('Aprovado! ✅');
+};
+// Recusar cadastro novo: apaga o jogador e o vínculo da conta (a conta do Firebase Auth fica órfã, sem acesso a nada)
+window.recusarUsuario = async key => {
+  const u = dbData.users?.[key];
+  if (!u || !confirm(`Recusar e apagar o cadastro de ${u.displayName}?`)) return;
+  await update(ref(db), {[`bolao/users/${key}`]: null, ...(u.uid ? {[`contas/${u.uid}`]: null} : {})});
+  showToast('Cadastro recusado.');
+};
+// Esqueceu a senha / conta tomada: desliga o login atual. A pessoa entra de novo com uma senha nova.
+window.liberarAcesso = async key => {
+  const u = dbData.users?.[key];
+  if (!u || !confirm(`Liberar novo acesso pra ${u.displayName}? O login atual para de funcionar.\n\nDepois apague o usuário "${key}@bolao-muitapaz.app" no Firebase (Authentication → Users), senão a senha antiga continua valendo lá.`)) return;
+  await update(ref(db), {[`bolao/users/${key}/uid`]: null, [`bolao/users/${key}/liberado`]: true, ...(u.uid ? {[`contas/${u.uid}`]: null} : {})});
+  showToast(`Acesso liberado. ${u.displayName} entra com uma senha nova.`);
 };
 window.changePassword = async () => {
   const p0 = document.getElementById('perf_pass0')?.value;
@@ -1550,10 +1644,11 @@ window.changePassword = async () => {
   if (!p0)              { showToast('Digite a senha atual!', true); return; }
   if (!p1||p1.length<6) { showToast('Mínimo 6 caracteres!', true); return; }
   if (p1!==p2)          { showToast('Senhas não coincidem!', true); return; }
-  // Confere a senha atual no banco (evita trocar a senha de quem deixou o celular logado)
-  const snap = await get(ref(db, `bolao/users/${currentUser.key}`));
-  if (await hashPassword(p0) !== snap.val()?.passwordHash) { showToast('Senha atual incorreta!', true); return; }
-  await update(ref(db, `bolao/users/${currentUser.key}`), {passwordHash: await hashPassword(p1)});
+  // Confere a senha atual (evita trocar a senha de quem deixou o celular logado)
+  try {
+    await reauthenticateWithCredential(auth.currentUser, EmailAuthProvider.credential(auth.currentUser.email, p0));
+  } catch (e) { showToast(e.code === 'auth/too-many-requests' ? 'Muitas tentativas. Espere alguns minutos.' : 'Senha atual incorreta!', true); return; }
+  await updatePassword(auth.currentUser, p1);
   showToast('Senha alterada! ✅');
   ['perf_pass0','perf_pass1','perf_pass2'].forEach(id => document.getElementById(id).value='');
 };
@@ -1565,56 +1660,12 @@ window.addJogo = async () => {
   const competicao = document.getElementById('new_comp')?.value?.trim();
   const fase = document.getElementById('new_fase')?.value?.trim() || '';
   if (!casa || !fora)        { showToast('Preencha os dois times!', true); return; }
-  if (!data || !competicao)  { showToast('Preencha data e competição!', true); return; }
+  if (!data || !hora || !competicao) { showToast('Preencha data, hora e competição!', true); return; }
   if (canonTeam(casa) === canonTeam(fora)) { showToast('Times devem ser diferentes!', true); return; }
-  await push(ref(db,`${MP}/jogos`), {casa, fora, data, hora, competicao, fase, status:'NS', resultado:{casa:null, fora:null}, palpites:{}});
+  // kickoff: é por ele que as regras do banco fecham os palpites
+  await push(ref(db,`${MP}/jogos`), {casa, fora, data, hora, kickoff: kickoffDe(data, hora), competicao, fase, status:'NS', atualizadoPor: currentUser.uid});
   showToast(`${casa} x ${fora} adicionado! ⚽`);
   ['new_casa','new_fora','new_data','new_fase'].forEach(id => document.getElementById(id).value = '');
-};
-window.zerarTudo = async () => {
-  await set(ref(db,`${MP}/jogos`), {});
-  await set(ref(db,`${MP}/lastSync`), null);
-  showToast('Dados zerados.');
-};
-
-window.EXTERMINAR_LIXO_ESPN = async () => {
-  showToast('Iniciando varredura pesada...');
-  
-  const jogosRaw = Object.entries(dbData.jogos || {}).map(([id, j]) => ({ ...j, _id: id }));
-  const lixoEspn = jogosRaw.filter(j => {
-    const t1 = (j.casa || '').toLowerCase();
-    const t2 = (j.fora || '').toLowerCase();
-    return ['winner', 'loser', 'path', 'qualifier', 'tbd', 'tba', 'group', 'place'].some(k => t1.includes(k) || t2.includes(k));
-  });
-
-  if (!lixoEspn.length) {
-    showToast('Nenhum nó fantasma da ESPN encontrado! 🎉');
-    return;
-  }
-
-  const jogosOficiais = jogosRaw.filter(j => j._id.startsWith('of_num_'));
-  let migrados = 0;
-
-  for (const jogoRuim of lixoEspn) {
-    // Tenta achar o irmão oficial dele (mesma data aproximada ou lógica)
-    // Se não achar por time, tenta cruzar pela data do jogo
-    const oficialCorrespondente = jogosOficiais.find(jOficial => {
-      return jOficial.data === jogoRuim.data && 
-             (jOficial.fase === jogoRuim.fase || jogoRuim.fase === 'Copa do Mundo');
-    });
-
-    // Se o lixo tinha palpites, joga pro oficial correspondente
-    if (oficialCorrespondente && jogoRuim.palpites && Object.keys(jogoRuim.palpites).length > 0) {
-      const palpitesAtualizados = { ...oficialCorrespondente.palpites, ...jogoRuim.palpites };
-      await update(ref(db, `${MP}/jogos/${oficialCorrespondente._id}`), { palpites: palpitesAtualizados });
-      migrados++;
-    }
-
-    // DELETA O INTRUSO SEM DÓ
-    await set(ref(db, `${MP}/jogos/${jogoRuim._id}`), null);
-  }
-
-  showToast(`Sucesso! ${lixoEspn.length} lixos limpos. Palpites salvos em ${migrados} jogo(s). 🔥`);
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -1659,7 +1710,7 @@ window.showPlayerModal = (playerName) => {
   overlay.onclick = (e) => { if (e.target === overlay) closePlayerModal(); };
   overlay.innerHTML = `<div class="achv-modal">
     <div class="achv-modal-hdr">
-      <div class="achv-modal-title">${emo(playerName)} ${playerName} ${timeTag(playerName)}
+      <div class="achv-modal-title">${emo(playerName)} ${esc(playerName)} ${timeTag(playerName)}
         ${perfilDe(playerName).status ? `<div class="perfil-status" style="font-size:12px">“${esc(perfilDe(playerName).status)}”</div>` : ''}</div>
       <button class="achv-close-btn" onclick="closePlayerModal()">✕</button>
     </div>
@@ -1672,13 +1723,7 @@ window.closePlayerModal = () => {
   document.getElementById('achv-overlay')?.remove();
 };
 
-startListening();
-setTimeout(()=>{
-  document.getElementById('loading-screen').style.display='none';
-  const sess = localStorage.getItem('bolao_session');
-  if (sess) { try { currentUser = JSON.parse(sess); bootApp(); } catch { localStorage.removeItem('bolao_session'); } }
-  if (!currentUser) document.getElementById('auth-screen').style.display='flex';
-}, 1200);
+// A sessão agora é do Firebase Auth (onAuthStateChanged, lá em cima): o localStorage não guarda mais quem está logado
 // ====================== HALL DA VERGONHA ======================
 
 // ====================== HALL DA VERGONHA ======================
@@ -1828,7 +1873,7 @@ function renderVergonha() {
       h += `
         <div class="vergonha-item">
           <span class="vergonha-pos">${medal}</span>
-          <span class="vergonha-name">${emo(item.player)} ${item.player}</span>
+          <span class="vergonha-name">${emo(item.player)} ${esc(item.player)}</span>
           <span class="vergonha-count">${item.count}x</span>
         </div>
       `;
@@ -1860,6 +1905,7 @@ window.toggleAccordion = (id) => {
 const elx = initEleicoes({
   db, ref, set, update,
   getUser: () => currentUser,
-  getData: () => dbData,
+  // Palpites das eleições ficam fora de bolao/ (escondidos até o prazo): junta aqui no formato antigo
+  getData: () => ({...dbData, eleicoes: {...dbData.eleicoes, palpites: palpitesEleicoes()}}),
   showToast, rerender: render, emo
 });

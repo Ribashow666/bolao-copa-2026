@@ -116,6 +116,7 @@ export function initEleicoes(ctx) {
   const E = () => getData().eleicoes || {};
   const me = () => getUser();
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const js = v => esc(JSON.stringify(v)); // argumento de onclick/oninput vindo do banco
   const num = s => { const n = parseFloat(String(s).replace(',', '.')); return isNaN(n) ? null : n; };
   const dv = (id, saved) => S.draft[id] ?? saved ?? '';
   const clearDraft = prefix => Object.keys(S.draft).filter(k => k.startsWith(prefix)).forEach(k => delete S.draft[k]);
@@ -126,7 +127,8 @@ export function initEleicoes(ctx) {
     return arr.map(x => ({ ...x, id: x.id || keyOf(x.nome) }));
   };
   const lock = t => E().config?.lock?.[t] || LOCK_DEFAULT[t];
-  const isOpen = t => Date.now() < Date.parse(lock(t));
+  // As regras do banco fecham os palpites pelo lockMs: a tela usa o mesmo valor
+  const isOpen = t => Date.now() < (E().config?.lockMs?.[t] ?? Date.parse(lock(t)));
   const fmtLock = iso => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Recife', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', ' ·');
   const restante = iso => {
     const ms = Date.parse(iso) - Date.now();
@@ -159,9 +161,9 @@ export function initEleicoes(ctx) {
   const mark = ok => ok === true ? '✅' : ok === 'part' ? '🟡' : '❌';
   const breakdown = sc => sc ? `<div class="el-bd-wrap">${sc.d.map(x => `<div class="el-bd"><span>${mark(x.ok)} ${esc(x.txt)}</span><b>+${x.v}</b></div>`).join('')}<div class="el-bd total"><span>Total</span><b>${sc.pts} pts</b></div></div>` : '';
   const options = (cs, selected) => `<option value="">— escolha —</option>` + cs.map(x =>
-    `<option value="${x.id}" ${selected === x.id ? 'selected' : ''}>${esc(x.nome)} (${esc(x.partido)} ${esc(x.num)})</option>`).join('');
-  const select = (id, cs, saved) => `<select class="form-input" id="${id}" onchange="elDraft('${id}',this.value)">${options(cs, dv(id, saved))}</select>`;
-  const pctInput = (id, saved) => `<input class="form-input" id="${id}" type="text" inputmode="decimal" placeholder="ex: 46,5" value="${esc(dv(id, saved != null ? String(saved).replace('.', ',') : ''))}" oninput="elDraft('${id}',this.value)">`;
+    `<option value="${esc(x.id)}" ${selected === x.id ? 'selected' : ''}>${esc(x.nome)} (${esc(x.partido)} ${esc(x.num)})</option>`).join('');
+  const select = (id, cs, saved) => `<select class="form-input" id="${esc(id)}" onchange="elDraft(${js(id)},this.value)">${options(cs, dv(id, saved))}</select>`;
+  const pctInput = (id, saved) => `<input class="form-input" id="${esc(id)}" type="text" inputmode="decimal" placeholder="ex: 46,5" value="${esc(dv(id, saved != null ? String(saved).replace('.', ',') : ''))}" oninput="elDraft(${js(id)},this.value)">`;
 
   function blockT1(race, cs, info, p, sc) {
     let h = `<div class="el-round"><div class="el-round-hdr"><span>1º TURNO · 4 de outubro</span>${lockBadge('t1')}</div>`;
@@ -271,7 +273,7 @@ export function initEleicoes(ctx) {
   }
 
   // ── Admin ──
-  const adminInput = (id, saved, attrs = '') => `<input class="form-input-admin" id="${id}" ${attrs} value="${esc(dv(id, saved))}" oninput="elDraft('${id}',this.value)">`;
+  const adminInput = (id, saved, attrs = '') => `<input class="form-input-admin" id="${esc(id)}" ${attrs} value="${esc(dv(id, saved))}" oninput="elDraft(${js(id)},this.value)">`;
 
   function renderEleicoesAdmin() {
     let h = `<div class="admin-box"><div class="admin-box-title">🗳️ Eleições — Prazos dos palpites</div>
@@ -319,7 +321,7 @@ export function initEleicoes(ctx) {
     if (primeiro === segundo) { showToast('1º e 2º precisam ser diferentes!', true); return; }
     if (pct == null || pct < 0 || pct > 100) { showToast('% inválida (use 0 a 100)!', true); return; }
     try {
-      await update(ref(db, `bolao/eleicoes/palpites/${me().key}`), { nome: me().username, [`${race}/t1`]: { primeiro, segundo, pct, ts: Date.now() } });
+      await set(ref(db, `eleicoesPalpites/t1/${me().key}/${race}`), { primeiro, segundo, pct, ts: Date.now() });
       clearDraft(`el_${race}_t1_`);
       showToast('Palpite salvo! 🗳️✅');
     } catch (e) { showToast('Erro ao salvar. Tente de novo.', true); }
@@ -332,7 +334,7 @@ export function initEleicoes(ctx) {
     if (!vencedor) { showToast('Escolha o vencedor!', true); return; }
     if (pct == null || pct < 50 || pct > 100) { showToast('O vencedor tem de 50 a 100% dos válidos!', true); return; }
     try {
-      await update(ref(db, `bolao/eleicoes/palpites/${me().key}`), { nome: me().username, [`${race}/t2`]: { vencedor, pct, ts: Date.now() } });
+      await set(ref(db, `eleicoesPalpites/t2/${me().key}/${race}`), { vencedor, pct, ts: Date.now() });
       clearDraft(`el_${race}_t2_`);
       showToast('Palpite salvo! 🗳️✅');
     } catch (e) { showToast('Erro ao salvar. Tente de novo.', true); }
@@ -345,7 +347,9 @@ export function initEleicoes(ctx) {
     const v = id => document.getElementById(id)?.value;
     const t1 = v('el_lock_t1'), t2 = v('el_lock_t2');
     if (!t1 || !t2) { showToast('Preencha os dois prazos!', true); return; }
-    await set(ref(db, 'bolao/eleicoes/config/lock'), { t1: `${t1}:00-03:00`, t2: `${t2}:00-03:00` });
+    const lockIso = { t1: `${t1}:00-03:00`, t2: `${t2}:00-03:00` };
+    // lockMs é o que as regras do banco usam pra fechar os palpites
+    await update(ref(db, 'bolao/eleicoes/config'), { lock: lockIso, lockMs: { t1: Date.parse(lockIso.t1), t2: Date.parse(lockIso.t2) } });
     clearDraft('el_lock_'); showToast('Prazos salvos! ⏰');
   };
 
@@ -409,7 +413,7 @@ export function initEleicoes(ctx) {
 
   window.elZerar = async () => {
     if (!soAdmin() || !confirm('Apagar TODOS os palpites e resultados das eleições? (candidatos e prazos ficam)')) return;
-    await set(ref(db, 'bolao/eleicoes/palpites'), null);
+    await set(ref(db, 'eleicoesPalpites'), null);
     await set(ref(db, 'bolao/eleicoes/resultados'), null);
     S.draft = {}; showToast('Eleições zeradas.');
   };
