@@ -537,3 +537,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .palpitou-chips{display:flex;flex-wrap:wrap;gap:5px}
 .palpitou-chip{font-size:11px;padding:4px 8px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);opacity:.65}
 .palpitou-chip.ok{color:var(--text);opacity:1;border-color:var(--green-light)}
+/* Clássico pernambucano ×2 */
+.badge-classico{background:#2a1000;color:#fb923c;border:1px solid #c2410c}
+/* Resumo de fim de jogo na Resenha */
+.chat-resumo{align-self:center;width:100%;max-width:360px;background:var(--surface2);border:1px solid var(--gold);border-radius:11px;padding:10px 12px;font-size:12px}
+.resumo-titulo{font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:var(--gold);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.resumo-placar{font-size:13px;margin:4px 0 8px}
+.resumo-placar strong{color:var(--gold2)}
+.resumo-linha{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-top:1px solid var(--border)}
+.resumo-linha small{color:var(--text2)}
+.resumo-linha .av{width:16px;height:16px}
+.resumo-extra{font-size:11px;color:var(--text2);margin-top:6px}

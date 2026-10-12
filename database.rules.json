@@ -187,6 +187,14 @@
       }
     },
 
+    "chatResumos": {
+      ".read": "auth != null && root.child('bolao/users/' + root.child('contas/' + auth.uid).val() + '/aprovado').val() === true",
+      "$jogo": {
+        ".write": "auth != null && root.child('bolao/users/' + root.child('contas/' + auth.uid).val() + '/aprovado').val() === true && !data.exists() && root.child('bolao/mp/jogos/' + $jogo + '/resultado/casa').isNumber() && root.child('bolao/mp/jogos/' + $jogo + '/status').isString() && root.child('bolao/mp/jogos/' + $jogo + '/status').val().matches(/^(FT|AET|PEN)$/)",
+        ".validate": "newData.isNumber() && newData.val() === now"
+      }
+    },
+
     "chatUltimo": {
       "$uid": {
         ".write": "auth != null && auth.uid === $uid",

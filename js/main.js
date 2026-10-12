@@ -144,6 +144,15 @@ function getMulti(fase) {
   if (f.includes('🏆') || /\bfinal\b/.test(f)) return 3;
   return 1;
 }
+// Clássico pernambucano (Sport, Náutico, Santa Cruz entre si) vale ×2 — só de CLASSICO_DESDE em diante,
+// pra não mudar os pontos de jogo que já foi contado. Se for mata-mata, fica o multiplicador maior.
+const CLASSICO_DESDE = '2026-10-12';
+const TIMES_CLASSICO = {sport:'sport', sport_recife:'sport', nautico:'nautico', santa_cruz:'santacruz'};
+const ehClassico = j => !modoCopa && (j.data||'') >= CLASSICO_DESDE &&
+  TIMES_CLASSICO[toKey(j.casa||'')] && TIMES_CLASSICO[toKey(j.fora||'')] &&
+  TIMES_CLASSICO[toKey(j.casa)] !== TIMES_CLASSICO[toKey(j.fora)];
+const multiJogo = j => ehClassico(j) ? Math.max(2, getMulti(j.fase)) : getMulti(j.fase);
+const tagClassico = j => ehClassico(j) ? `<span class="badge badge-classico">🔥 Clássico ×${multiJogo(j)}</span>` : '';
 
 // data + hora (BRT) → timestamp
 function kickoffDe(data, hora) {
@@ -274,15 +283,16 @@ function getJogos() {
   });
 }
 
-function computeRanking() {
+// conta(jogo): quais jogos com resultado entram na soma (o resumo da Resenha usa pra ver o ranking antes/depois de um jogo)
+function computeRanking(conta = () => true) {
   const pts={}, exact={};
   jogadoresFixos().forEach(j=>{pts[j]=anterior(j).pts; exact[j]=anterior(j).exatos;});
   Object.values(dbData.users||{}).forEach(u=>{
     if(pts[u.displayName]==null) { pts[u.displayName]=anterior(u.displayName).pts; exact[u.displayName]=anterior(u.displayName).exatos; }
   });
   getJogos().forEach(jogo=>{
-    if (jogo.resultado?.casa == null) return;
-    const multi = getMulti(jogo.fase);
+    if (jogo.resultado?.casa == null || !conta(jogo)) return;
+    const multi = multiJogo(jogo);
     Object.entries(jogo.palpites||{}).forEach(([jogador,p])=>{
       const r=calcPts(jogo.resultado,p);
       if(r){
@@ -322,7 +332,7 @@ function computeEvolucao() {
   dias.forEach(dia=>{
     const jogosDoDia = jogos.filter(j=>diaExibicao(j)===dia);
     jogosDoDia.forEach(jogo=>{
-      const multi = getMulti(jogo.fase);
+      const multi = multiJogo(jogo);
       Object.entries(jogo.palpites||{}).forEach(([jogador,p])=>{
         const r = calcPts(jogo.resultado,p);
         if (r) acumulado[jogador] = (acumulado[jogador]||0) + (r.pts*multi);
@@ -576,6 +586,7 @@ function startListening() {
               copaJogos: raw.jogos || {}};
     if (!dbData.users) dbData.users={};
     atualizarOuvintesPalpites();
+    criarResumos(); // jogo que acabou de encerrar ganha o resumo na Resenha
     // Primeira carga do banco: agora já dá pra saber se a sync está atrasada
     if (!primeiraCarga) { primeiraCarga = true; if (currentUser) syncFromApi(false); }
     if (currentUser && !isTypingInPalpite()) render();
@@ -1043,18 +1054,82 @@ function iniciarChat() {
     if (currentTab === 'chat') { marcarChatVisto(); atualizarChatLista(); }
     atualizarBadgeChat();
   });
+  onValue(ref(db, 'chatResumos'), snap => {
+    chatResumos = snap.val() || {};
+    resumosCarregados = true;
+    criarResumos();
+    if (currentTab === 'chat') { marcarChatVisto(); atualizarChatLista(); }
+    atualizarBadgeChat();
+  }, e => console.warn('chatResumos:', e.message));
+}
+
+// ── Resumo de fim de jogo na Resenha ──
+// O banco só guarda QUANDO o resumo entrou no chat (chatResumos/{jogo}: ts); o conteúdo é calculado aqui
+// a partir do placar e dos palpites, então ninguém consegue forjar um resumo.
+const RESUMO_DESDE = '2026-10-12'; // jogos de antes disso não ganham resumo (senão o chat enchia de uma vez)
+let chatResumos = {};
+let resumosCarregados = false;
+const resumosTentados = new Set();
+const semCopa = fn => { const m = modoCopa; modoCopa = false; try { return fn(); } finally { modoCopa = m; } };
+// Primeiro aparelho que vê o jogo encerrado marca o resumo; as regras recusam os seguintes
+function criarResumos() {
+  if (!resumosCarregados || !currentUser) return;
+  semCopa(getJogos).forEach(j => {
+    if (!['FT','AET','PEN'].includes(j.status) || j.resultado?.casa == null) return;
+    if (diaExibicao(j) < RESUMO_DESDE || chatResumos[j._id] || resumosTentados.has(j._id)) return;
+    resumosTentados.add(j._id);
+    set(ref(db, `chatResumos/${j._id}`), serverTimestamp()).catch(e => console.warn('chatResumos:', e.message));
+  });
+}
+// Mensagens + resumos, em ordem. Só os resumos do período que as 100 mensagens carregadas cobrem.
+function itensChat() {
+  const desde = chatMsgs.length >= 100 ? chatMsgs[0].ts : 0;
+  const resumos = Object.entries(chatResumos).filter(([, ts]) => ts >= desde).map(([jogoId, ts]) => ({resumo: true, jogoId, ts}));
+  return [...chatMsgs, ...resumos].sort((a, b) => (a.ts || 0) - (b.ts || 0));
+}
+function htmlResumo(jogoId) {
+  return semCopa(() => {
+    const jogo = getJogos().find(j => j._id === jogoId);
+    if (!jogo || jogo.resultado?.casa == null) return '';
+    const multi = multiJogo(jogo);
+    const pals = Object.entries(jogo.palpites || {})
+      .map(([n, p]) => ({n, p, r: calcPts(jogo.resultado, p)}))
+      .map(x => ({...x, pts: x.r ? Math.round(x.r.pts * multi) : 0}))
+      .sort((a, b) => b.pts - a.pts || a.n.localeCompare(b.n));
+    const faltou = jogadoresFixos().filter(n => !jogo.palpites?.[n]);
+    // Ranking antes x depois deste jogo (só jogos até o apito dele)
+    const k = kickoffJogo(jogo) || 0;
+    const posicoes = conta => {
+      const {sorted} = computeRanking(conta);
+      return Object.fromEntries(sorted.map(([n, p]) => [n, 1 + sorted.filter(([, q]) => q > p).length]));
+    };
+    const antes  = posicoes(j => j._id !== jogo._id && (kickoffJogo(j) || 0) <= k);
+    const depois = posicoes(j => (kickoffJogo(j) || 0) <= k);
+    const mudou = Object.keys(depois).filter(n => antes[n] && antes[n] !== depois[n])
+      .sort((a, b) => depois[a] - depois[b])
+      .map(n => depois[n] < antes[n] ? `📈 ${esc(n)} subiu pro ${depois[n]}º` : `📉 ${esc(n)} caiu pro ${depois[n]}º`);
+    const linhas = pals.map(({n, p, r, pts}) =>
+      `<div class="resumo-linha"><span>${r?.tipo === 'exact' ? '🎯' : pts ? '✅' : '🤡'} ${emo(n)} ${esc(n)} <small>${esc(p.casa)}x${esc(p.fora)}</small></span><span class="${ptsClass(r?.tipo)}">${pts} pts</span></div>`).join('');
+    return `<div class="chat-resumo">
+      <div class="resumo-titulo">🏁 Fim de jogo ${tagClassico(jogo)}</div>
+      <div class="resumo-placar">${esc(jogo.casa)} <strong>${esc(jogo.resultado.casa)} x ${esc(jogo.resultado.fora)}</strong> ${esc(jogo.fora)}</div>
+      ${linhas || '<div class="resumo-extra">Ninguém palpitou nesse jogo 😴</div>'}
+      ${faltou.length ? `<div class="resumo-extra">🙈 Não palpitou: ${faltou.map(esc).join(', ')}</div>` : ''}
+      ${mudou.length ? `<div class="resumo-extra">${mudou.join(' · ')}</div>` : ''}
+    </div>`;
+  });
 }
 
 // "Não lidas" ficam por aparelho (localStorage): é só um contador, não precisa ir pro banco
 const chatVisto = () => { try { return +localStorage.getItem('chat_visto') || 0; } catch { return 0; } };
 function marcarChatVisto() {
-  const ultimo = chatMsgs.at(-1)?.ts || 0;
+  const ultimo = itensChat().at(-1)?.ts || 0;
   try { if (ultimo > chatVisto()) localStorage.setItem('chat_visto', ultimo); } catch {}
 }
 function atualizarBadgeChat() {
   const btn = document.getElementById('tab-chat');
   if (!btn) return;
-  const n = currentTab === 'chat' ? 0 : chatMsgs.filter(m => m.ts > chatVisto() && m.nome !== currentUser?.username).length;
+  const n = currentTab === 'chat' ? 0 : itensChat().filter(m => m.ts > chatVisto() && m.nome !== currentUser?.username).length;
   btn.innerHTML = `💬 Resenha${n ? ` <span class="chat-badge">${n > 99 ? '99+' : n}</span>` : ''}`;
 }
 
@@ -1065,8 +1140,10 @@ function fmtHoraChat(ts) {
 }
 
 function htmlChatLista() {
-  if (!chatMsgs.length) return `<div class="chat-vazio">Ninguém falou nada ainda. Começa a resenha! 😂</div>`;
-  return chatMsgs.map(m => {
+  const itens = itensChat();
+  if (!itens.length) return `<div class="chat-vazio">Ninguém falou nada ainda. Começa a resenha! 😂</div>`;
+  return itens.map(m => {
+    if (m.resumo) return htmlResumo(m.jogoId);
     const meu = m.nome === currentUser.username;
     const podeApagar = !m.apagada && (meu || currentUser.isAdmin);
     // Apagada: igual ao zap, fica o aviso no lugar (e quem apagou, se não foi o próprio autor)
@@ -1188,11 +1265,11 @@ function renderMatchCard(jogo, opts={}) {
                :          `<span class="badge badge-fechado">🔒 Fechado</span>`;
   const c = temRes ? esc(jogo.resultado.casa) : '-';
   const f = temRes ? esc(jogo.resultado.fora) : '-';
-  const multi = getMulti(jogo.fase);
+  const multi = multiJogo(jogo);
   let h=`<div class="match-card ${opts.highlight?'match-card-today':''}">
     <div class="match-hdr">
       <span class="match-date">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span>
-      <div style="display:flex;gap:5px;align-items:center"><span class="match-stage">${rotulo(jogo)}</span>${badge}</div>
+      <div style="display:flex;gap:5px;align-items:center"><span class="match-stage">${rotulo(jogo)}</span>${tagClassico(jogo)}${badge}</div>
     </div>
     <div class="match-body">
       <div class="scoreboard">
@@ -1495,7 +1572,7 @@ function renderPalpitar() {
       // Palpite de antes da marca "palpitou" existir: marca agora pra os outros verem
       if (meu!=null && !jogo.palpitou?.[currentUser.username] && !marcandoPalpitou.has(jogo._id)) marcarPalpitou(jogo._id);
       h += `<div class="palpitar-card">
-        <div class="pal-hdr"><span style="font-weight:600;font-size:11px;color:var(--gold)">${rotulo(jogo)}</span><span style="font-size:10px;color:var(--text2)">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span></div>
+        <div class="pal-hdr"><span style="font-weight:600;font-size:11px;color:var(--gold)">${rotulo(jogo)} ${tagClassico(jogo)}</span><span style="font-size:10px;color:var(--text2)">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span></div>
         <div class="pal-match-row">
           <div class="pal-team"><div class="pal-flag">${escudo(jogo.casa, jogo.logoCasa)}</div><div class="pal-name">${esc(jogo.casa)}</div></div>
           <span style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text2)">VS</span>
