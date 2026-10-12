@@ -139,6 +139,17 @@
       }
     },
 
+    "palpitou": {
+      ".read": "auth != null && root.child('bolao/users/' + root.child('contas/' + auth.uid).val() + '/aprovado').val() === true",
+      ".write": "auth != null && root.child('bolao/users/' + root.child('contas/' + auth.uid).val() + '/aprovado').val() === true && root.child('bolao/users/' + root.child('contas/' + auth.uid).val() + '/isAdmin').val() === true",
+      "$jogo": {
+        "$nome": {
+          ".write": "auth != null && root.child('bolao/users/' + root.child('contas/' + auth.uid).val() + '/aprovado').val() === true && $nome.toLowerCase() === root.child('contas/' + auth.uid).val() && $nome === root.child('bolao/users/' + $nome.toLowerCase() + '/displayName').val() && root.child('bolao/mp/jogos/' + $jogo + '/kickoff').isNumber() && now < root.child('bolao/mp/jogos/' + $jogo + '/kickoff').val()",
+          ".validate": "newData.val() === true"
+        }
+      }
+    },
+
     "eleicoesPalpites": {
       ".write": "auth != null && root.child('bolao/users/' + root.child('contas/' + auth.uid).val() + '/aprovado').val() === true && root.child('bolao/users/' + root.child('contas/' + auth.uid).val() + '/isAdmin').val() === true",
       "$t": {

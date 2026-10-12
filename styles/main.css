@@ -523,4 +523,17 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .el-res-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
 .el-res-row small{color:var(--text2)}
 .el-res-row input{width:90px;text-align:right}
-@media(max-width:400px){.tab-btn{font-size:10px;letter-spacing:.2px}}
+/* Celular: abas roláveis de lado, com espaço pra dedo; o degradê na direita avisa que tem mais */
+@media(max-width:700px){
+  .tabs{position:relative}
+  .tabs::after{content:'';position:absolute;top:0;right:0;bottom:0;width:32px;background:linear-gradient(to right,transparent,var(--surface));pointer-events:none}
+  .tabs-inner{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;gap:2px;padding:0 24px 0 6px}
+  .tabs-inner::-webkit-scrollbar{display:none}
+  .tab-btn{flex:0 0 auto;padding:14px 14px 12px;font-size:12px;letter-spacing:.4px;white-space:nowrap;scroll-snap-align:start}
+}
+/* Quem já palpitou (sem placar) */
+.palpitou-box{padding:9px 13px 12px;border-top:1px solid var(--border)}
+.palpitou-resumo{font-size:10px;color:var(--text2);margin-bottom:7px}
+.palpitou-chips{display:flex;flex-wrap:wrap;gap:5px}
+.palpitou-chip{font-size:11px;padding:4px 8px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);opacity:.65}
+.palpitou-chip.ok{color:var(--text);opacity:1;border-color:var(--green-light)}

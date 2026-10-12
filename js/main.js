@@ -251,7 +251,7 @@ function getJogos() {
   // Aba "Copa 2026": mesmo cálculo de ranking/jogos, mas lendo o arquivo da Copa (bolao/jogos)
   // No bolão atual os palpites ficam fora do jogo (palpites/{jogo}), pra poderem ficar escondidos até o apito
   const all = Object.entries((modoCopa ? dbData.copaJogos : dbData.jogos)||{})
-    .map(([id,j])=>({...j, _id:id, ...(modoCopa ? {} : {palpites: palpitesVivos[id] || {}})}))
+    .map(([id,j])=>({...j, _id:id, ...(modoCopa ? {} : {palpites: palpitesVivos[id] || {}, palpitou: palpitouVivo[id] || {}})}))
     .sort((a,b)=>{
       const dd = a.data>b.data ? 1 : a.data<b.data ? -1 : 0;
       return dd || ((a.hora||'')>(b.hora||'') ? 1 : -1);
@@ -265,8 +265,9 @@ function getJogos() {
     });
     // Mescla palpites de todas as cópias do mesmo jogo, pra ninguém perder o voto
     const palpitesMerged = {};
-    g.items.forEach(item => Object.assign(palpitesMerged, item.palpites||{}));
-    return {...best, fase: bestFase(g.items), palpites: palpitesMerged};
+    const palpitouMerged = {};
+    g.items.forEach(item => { Object.assign(palpitesMerged, item.palpites||{}); Object.assign(palpitouMerged, item.palpitou||{}); });
+    return {...best, fase: bestFase(g.items), palpites: palpitesMerged, palpitou: palpitouMerged};
   });
 }
 
@@ -576,6 +577,9 @@ function startListening() {
     if (!primeiraCarga) { primeiraCarga = true; if (currentUser) syncFromApi(false); }
     if (currentUser && !isTypingInPalpite()) render();
   });
+  // Quem já palpitou (sem o placar): todo mundo vê desde antes do apito
+  onValue(ref(db,'palpitou'), snap => { palpitouVivo = snap.val() || {}; agendarRender(); },
+    e => console.warn('palpitou:', e.message));
   // O Firebase sempre manda "false" ao abrir a página, antes de conectar: só avisa se cair depois de ter conectado
   let jaConectou = false;
   onValue(ref(db,'.info/connected'), snap=>{
@@ -592,6 +596,13 @@ function startListening() {
 // Um ouvinte por jogo (ou por turno, nas eleições), trocado de "meu" pra "todos" quando o prazo passa.
 let palpitesVivos = {};    // {jogoId: {nome: {casa, fora}}}
 let eleicoesVivos = {};    // {t1|t2: {key: {pres, gov}}}
+let palpitouVivo = {};     // {jogoId: {nome: true}} — só quem palpitou, sem o placar
+const marcandoPalpitou = new Set(); // palpites antigos (de antes da marca existir) que já mandamos marcar
+// Marca "palpitou" pro próprio usuário. Se falhar (regra ainda não publicada), o palpite em si já foi salvo.
+function marcarPalpitou(id) {
+  marcandoPalpitou.add(id);
+  return set(ref(db, `palpitou/${id}/${currentUser.username}`), true).catch(e => console.warn('palpitou:', e.message));
+}
 const ouvintes = {};       // {caminho-base: {modo, parar}}
 let renderAgendado = false;
 function agendarRender() {
@@ -796,6 +807,8 @@ window.showTab = tab => {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.toggle('active', btn.id === `tab-${tab}`);
   });
+  // No celular as abas rolam de lado: traz a escolhida pra perto do meio
+  document.getElementById(`tab-${tab}`)?.scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'});
 
   render();
 };
@@ -1186,7 +1199,10 @@ function renderMatchCard(jogo, opts={}) {
       </div>
     </div>`;
   const pals=Object.entries(jogo.palpites||{});
-  if (pals.length) {
+  if (aberto && !modoCopa) {
+    // Antes do apito: mostra quem já palpitou, mas não o placar
+    h+=`<div class="match-pals"><div class="pals-title">📝 Quem já palpitou</div>${quemPalpitou(jogo)}</div>`;
+  } else if (pals.length) {
     h+=`<div class="match-pals"><div class="pals-title">📝 Palpites</div><div class="pals-grid">`;
     pals.forEach(([jogador,p])=>{
       const r = temRes ? calcPts(jogo.resultado,p) : null;
@@ -1198,6 +1214,15 @@ function renderMatchCard(jogo, opts={}) {
   }
   h+=`</div>`;
   return h;
+}
+// Chips de quem já palpitou (✅) e quem falta (⏳) num jogo ainda aberto — sem placar
+function quemPalpitou(jogo) {
+  const ja = new Set(Object.keys(jogo.palpitou||{}));
+  if ((jogo.palpites||{})[currentUser.username]) ja.add(currentUser.username);
+  const todos = [...new Set([...jogadoresFixos(), ...ja])];
+  const chips = todos.sort((a,b) => (ja.has(b)-ja.has(a)) || a.localeCompare(b)).map(n =>
+    `<span class="palpitou-chip ${ja.has(n)?'ok':''}">${ja.has(n)?'✅':'⏳'} ${emo(n)} ${esc(n)}</span>`).join('');
+  return `<div class="palpitou-resumo">${ja.size} de ${todos.length} palpitaram · placares aparecem no apito</div><div class="palpitou-chips">${chips}</div>`;
 }
 function fmtDiaLong(data) {
   if (!data) return '';
@@ -1464,6 +1489,8 @@ function renderPalpitar() {
     abertos.forEach(jogo => {
       const meu  = (jogo.palpites||{})[currentUser.username];
       const tempo = tempoParaJogo(jogo);
+      // Palpite de antes da marca "palpitou" existir: marca agora pra os outros verem
+      if (meu!=null && !jogo.palpitou?.[currentUser.username] && !marcandoPalpitou.has(jogo._id)) marcarPalpitou(jogo._id);
       h += `<div class="palpitar-card">
         <div class="pal-hdr"><span style="font-weight:600;font-size:11px;color:var(--gold)">${rotulo(jogo)}</span><span style="font-size:10px;color:var(--text2)">📅 ${fmtDate(jogo.data)} · ${fmtTime(jogo.hora)}</span></div>
         <div class="pal-match-row">
@@ -1486,6 +1513,7 @@ function renderPalpitar() {
           </div>
           ${meu!=null ? `<div style="font-size:10px;color:var(--text2);margin-top:6px">✅ Palpite atual: <strong>${esc(meu.casa)}x${esc(meu.fora)}</strong></div>` : ''}
         </div>
+        <div class="palpitou-box">${quemPalpitou(jogo)}</div>
       </div>`;
     });
   }
@@ -1601,6 +1629,7 @@ window.salvarPalpite = async id => {
   try {
     await set(ref(db, `palpites/${id}/${currentUser.username}`), {casa:+c, fora:+f});
   } catch (e) { console.error(e); showToast('⏰ Não deu pra salvar: o prazo deste jogo encerrou.', true); return; }
+  marcarPalpitou(id);
   delete palpiteDrafts[id]; // salvou, não precisa mais do rascunho
   showToast(`Palpite salvo! ${c}x${f} ✅`);
 };
