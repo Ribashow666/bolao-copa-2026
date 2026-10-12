@@ -25,6 +25,9 @@ const emailDe = key => `${key}@bolao-muitapaz.app`;
 const KNOWN_PLAYERS = ['Milho','Wly','Igor','Jucas','Wendel','Pedru','Vini','Melk','Gilles'];
 // Na aba Copa 2026 só aparece quem palpitou na Copa (o Gilles entrou depois)
 const jogadoresFixos = () => modoCopa ? [] : KNOWN_PLAYERS;
+// Pontos da tabela antiga (antes do site), somados ao que o site calcula. Vai até NAU 0x2 NOV.
+const PONTOS_ANTERIORES = {Wly:{pts:615, exatos:9}, Igor:{pts:511, exatos:7}, Milho:{pts:497, exatos:7}, Jucas:{pts:427, exatos:8}, Wendel:{pts:348, exatos:4}};
+const anterior = n => (!modoCopa && PONTOS_ANTERIORES[n]) || {pts:0, exatos:0};
 const EMOJIS = {Milho:'🌽',Wly:'🦅',Igor:'🐺',Jucas:'🦁',Wendel:'⚡',Pedru:'🐉',Vini:'🐆',Melk:'🌊',Gilles:'🦈'};
 const FLAGS = {
   'Brazil':'🇧🇷','Argentina':'🇦🇷','France':'🇫🇷','Germany':'🇩🇪',
@@ -273,9 +276,9 @@ function getJogos() {
 
 function computeRanking() {
   const pts={}, exact={};
-  jogadoresFixos().forEach(j=>{pts[j]=0; exact[j]=0;});
+  jogadoresFixos().forEach(j=>{pts[j]=anterior(j).pts; exact[j]=anterior(j).exatos;});
   Object.values(dbData.users||{}).forEach(u=>{
-    if(!pts[u.displayName]) { pts[u.displayName]=0; exact[u.displayName]=0; }
+    if(pts[u.displayName]==null) { pts[u.displayName]=anterior(u.displayName).pts; exact[u.displayName]=anterior(u.displayName).exatos; }
   });
   getJogos().forEach(jogo=>{
     if (jogo.resultado?.casa == null) return;
@@ -311,7 +314,7 @@ function computeEvolucao() {
   if (!dias.length) return {dias:[], series:{}};
 
   const acumulado = {};
-  jogadores.forEach(j=>acumulado[j]=0);
+  jogadores.forEach(j=>acumulado[j]=anterior(j).pts);
 
   const series = {};
   jogadores.forEach(j=>series[j]=[]);
