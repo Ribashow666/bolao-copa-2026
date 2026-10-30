@@ -127,8 +127,8 @@ export function initEleicoes(ctx) {
     return arr.map(x => ({ ...x, id: x.id || keyOf(x.nome) }));
   };
   const lock = t => E().config?.lock?.[t] || LOCK_DEFAULT[t];
-  // As regras do banco fecham os palpites pelo lockMs: a tela usa o mesmo valor
-  const isOpen = t => Date.now() < (E().config?.lockMs?.[t] ?? Date.parse(lock(t)));
+  // As regras do banco fecham os palpites pelo lockMs e recusam tudo se ele não existir: a tela faz igual
+  const isOpen = t => { const ms = E().config?.lockMs?.[t]; return typeof ms === 'number' && Date.now() < ms; };
   const fmtLock = iso => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Recife', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', ' ·');
   const restante = iso => {
     const ms = Date.parse(iso) - Date.now();
@@ -252,7 +252,7 @@ export function initEleicoes(ctx) {
   function viewRegras() {
     const row = (l, p) => `<div class="pts-row"><span>${l}</span><span style="font-weight:700;color:var(--gold);white-space:nowrap">${p}</span></div>`;
     return `<div class="pts-legend"><div class="pts-legend-title">📋 Como funciona</div>
-      <div class="el-hint" style="margin-bottom:10px">Para cada disputa (Presidente e Governador de PE) você palpita no 1º turno e, se houver, no 2º. Palpites fecham às 08h do dia da votação (horário de Recife). Os palpites dos outros só aparecem depois do fechamento.</div>
+      <div class="el-hint" style="margin-bottom:10px">Para cada disputa (Presidente e Governador de PE) você palpita no 1º turno e, se houver, no 2º. Prazos (horário de Recife): 1º turno até ${fmtLock(lock('t1'))}, 2º turno até ${fmtLock(lock('t2'))}. Os palpites dos outros só aparecem depois do fechamento.</div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--gold);letter-spacing:1px;margin-bottom:7px">1º TURNO</div><div class="pts-grid">
         ${row('Acertou o 1º colocado', PTS.PRIMEIRO + ' pts')}${row('Acertou o 2º colocado', PTS.SEGUNDO + ' pts')}
         ${row('Escolheu um dos 2 primeiros, posição trocada', PTS.TROCADO + ' pts')}${row('Acertou se haverá 2º turno', PTS.HAVERA_T2 + ' pts')}
@@ -277,7 +277,7 @@ export function initEleicoes(ctx) {
 
   function renderEleicoesAdmin() {
     let h = `<div class="admin-box"><div class="admin-box-title">🗳️ Eleições — Prazos dos palpites</div>
-      <div class="el-hint" style="margin-bottom:9px">Horário de Recife/Brasília. Padrão: 08:00 do dia da votação.</div>
+      <div class="el-hint" style="margin-bottom:9px">Horário de Recife/Brasília. ${E().config?.lockMs ? '' : '⚠️ Prazos ainda não salvos: o banco recusa todo palpite até você salvar.'}</div>
       <div class="form-grid">
         <div class="form-group-admin"><label class="form-label-admin">Fecha 1º turno</label>${adminInput('el_lock_t1', lock('t1').slice(0, 16), 'type="datetime-local"')}</div>
         <div class="form-group-admin"><label class="form-label-admin">Fecha 2º turno</label>${adminInput('el_lock_t2', lock('t2').slice(0, 16), 'type="datetime-local"')}</div>

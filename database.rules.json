@@ -54,7 +54,7 @@
         "jogos": {
           "$id": {
             ".write": "auth != null && root.child('bolao/users/' + root.child('contas/' + auth.uid).val() + '/aprovado').val() === true && $id.matches(/^espn_[0-9]+$/) && newData.exists()",
-            ".validate": "newData.hasChildren(['casa', 'fora', 'data', 'hora', 'kickoff', 'atualizadoPor']) && newData.child('atualizadoPor').val() === auth.uid && (!data.child('kickoff').exists() || newData.child('kickoff').val() === data.child('kickoff').val() || now < data.child('kickoff').val() || root.child('bolao/users/' + root.child('contas/' + auth.uid).val() + '/isAdmin').val() === true)",
+            ".validate": "newData.hasChildren(['casa', 'fora', 'data', 'hora', 'kickoff', 'atualizadoPor']) && newData.child('atualizadoPor').val() === auth.uid && (root.child('bolao/users/' + root.child('contas/' + auth.uid).val() + '/isAdmin').val() === true || ((!data.child('kickoff').exists() || newData.child('kickoff').val() === data.child('kickoff').val()) && ((newData.child('resultado/casa').val() === data.child('resultado/casa').val() && newData.child('resultado/fora').val() === data.child('resultado/fora').val()) || (now >= newData.child('kickoff').val() && !(data.child('status').isString() && data.child('status').val().matches(/^(FT|AET|PEN)$/) && now > data.child('kickoff').val() + 14400000)))))",
             "casa":       { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
             "fora":       { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
             "data":       { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },

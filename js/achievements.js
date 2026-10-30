@@ -54,25 +54,7 @@ const MIN_PALPITES_NATO    = 25; // mínimo de palpites pra "Apostador Nato"
 const MIN_MATA_MATA_FARO   = 3;  // mínimo de acertos de mata-mata pra "Faro Fino"
 const MIN_TOTAL_MEIO       = 25; // mínimo de acertos totais pra "Meio do Caminho"
 
-// ── Classifica o tipo de resultado de um palpite (mesma lógica do calcPts) ──
-function classify(real, pal) {
-  if (real?.casa == null || !pal) return null;
-  const rc = +real.casa, rf = +real.fora, pc = +pal.casa, pf = +pal.fora;
-  if ([rc, rf, pc, pf].some(isNaN)) return null;
-  if (rc === pc && rf === pf) return 'exact';
-  const pD = pc === pf, rD = rc === rf;
-  if (pD && !rD) return 'almost';
-  if (rD && !pD) return 'miss';
-  if (rD && pD)  return 'draw';
-  const rWC = rc > rf, pWC = pc > pf;
-  if (rWC !== pWC) return 'miss';
-  const wg = rWC ? rc : rf, pwg = pWC ? pc : pf;
-  if (pwg === wg) return 'vg';
-  if ((rc - rf) === (pc - pf)) return 'diff';
-  const lg = rWC ? rf : rc, plg = pWC ? pf : pc;
-  if (plg === lg) return 'lg';
-  return 'win';
-}
+import { classify } from "./pontos.js";
 
 // "Acertou o resultado" = acertou o vencedor OU acertou o empate (qualquer tipo com pts>0 exceto 'almost')
 const RESULTADO_CORRETO = new Set(['exact', 'vg', 'diff', 'lg', 'win', 'draw']);

@@ -6,6 +6,7 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWith
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { BADGE_DEFS, RARITY_META, computeAchievements } from "./achievements.js";
 import { initEleicoes } from "./eleicoes.js";
+import { classify, calcPts, getMulti } from "./pontos.js";
 
 const FB_CONFIG = {
   apiKey:"AIzaSyCFS5qEkn3WmoXlWPHi7gw9ScywnrzrEAs",
@@ -47,7 +48,6 @@ const FLAGS = {
   'Uzbekistan':'🇺🇿','Qatar':'🇶🇦','Mali':'🇲🇱','Indonesia':'🇮🇩',
   'Bosnia and Herzegovina':'🇧🇦','Bosnia & Herzegovina':'🇧🇦',
 };
-const PTS = {EXATO:25, VG:18, DIFF:15, DRAW:15, LG:12, WIN:10, ALMOST:4};
 
 // ── Bolão Muita Paz: Sport, Náutico, Santa Cruz e Seleção ──
 // Jogos e config ficam em bolao/mp/ — os jogos antigos da Copa (bolao/jogos) ficam guardados intactos.
@@ -111,39 +111,9 @@ const fmtDate = d => { if(!d) return ''; const [,m,day]=String(d).split('-'); re
 const fmtTime = t => t ? esc(String(t).substring(0,5)) : '';
 const toKey   = s => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
 
-function calcPts(real, pal) {
-  if (real?.casa == null) return null;
-  const rc=+real.casa, rf=+real.fora, pc=+pal.casa, pf=+pal.fora;
-  if ([rc,rf,pc,pf].some(isNaN)) return null;
-  if (rc===pc && rf===pf)        return {pts:PTS.EXATO, tipo:'exact'};
-  const pD=pc===pf, rD=rc===rf;
-  if (pD && !rD)                 return {pts:PTS.ALMOST, tipo:'almost'};
-  if (rD && !pD)                 return {pts:0,          tipo:'miss'};
-  if (rD && pD)                  return {pts:PTS.DRAW,   tipo:'draw'};
-  const rWC=rc>rf, pWC=pc>pf;
-  if (rWC!==pWC)                 return {pts:0, tipo:'miss'};
-  const wg=rWC?rc:rf, lg=rWC?rf:rc, pwg=pWC?pc:pf, plg=pWC?pf:pc;
-  if (pwg===wg)                  return {pts:PTS.VG,   tipo:'vg'};
-  if ((rc-rf)===(pc-pf))         return {pts:PTS.DIFF, tipo:'diff'};
-  if (plg===lg)                  return {pts:PTS.LG,   tipo:'lg'};
-  return {pts:PTS.WIN, tipo:'win'};
-}
 const ptsClass = t=>({exact:'pts-exact',vg:'pts-vg',diff:'pts-diff',draw:'pts-draw',lg:'pts-lg',win:'pts-win',almost:'pts-almost',miss:'pts-zero'}[t]||'pts-zero');
 const ptsLabel = t=>({exact:'Exato!',vg:'Venc+G✓',diff:'Venc+Dif',draw:'Emp✓',lg:'Venc+Gl',win:'Venc✓',almost:'~Emp',miss:'—'}[t]||'—');
 
-// Multiplicador só pro mata-mata. Checa por palavra-chave (não por número), senão "Rodada 32" viraria ×1,25.
-function getMulti(fase) {
-  if (!fase) return 1;
-  const f = fase.toLowerCase();
-  if (f.includes('semi')) return 2.5;
-  if (f.includes('3º lugar')) return 2.5;
-  if (f.includes('quarta')) return 2;
-  // "Oitavas de 32" = nome antigo do mata-mata de 32 da Copa: tem que continuar ×1,25 pro ranking da Copa não mudar
-  if (f.includes('16 avos') || f.includes('oitavas de 32')) return 1.25;
-  if (f.includes('oitava')) return 1.5;
-  if (f.includes('🏆') || /\bfinal\b/.test(f)) return 3;
-  return 1;
-}
 // Clássico pernambucano (Sport, Náutico, Santa Cruz entre si) vale ×2 — só de CLASSICO_DESDE em diante,
 // pra não mudar os pontos de jogo que já foi contado. Se for mata-mata, fica o multiplicador maior.
 const CLASSICO_DESDE = '2026-10-12';
@@ -373,6 +343,11 @@ function showToast(msg, isErr=false) {
   clearTimeout(t._to);
   t._to=setTimeout(()=>t.classList.remove('show'), 2800);
 }
+// Ação que falhou sem tratar o erro (admin, perfil...): avisa em vez de falhar calada
+window.addEventListener('unhandledrejection', e => {
+  console.error(e.reason);
+  showToast('❌ Não deu certo (sem permissão ou sem internet). Tenta de novo.', true);
+});
 function setSyncBar(type, msg) {
   const b=document.getElementById('sync-bar');
   if(!msg){b.className='sync-bar'; b.style.display='none'; return;}
@@ -573,7 +548,8 @@ function isTypingInPalpite() {
   if (currentTab === 'palpitar') return /^p[cf]_/.test(ae.id || '');
   if (currentTab === 'perfil')   return /^perf_/.test(ae.id || '');
   if (currentTab === 'chat')     return ae.id === 'chat_input';
-  if (currentTab === 'eleicoes' || currentTab === 'admin') return /^el_/.test(ae.id || '');
+  if (currentTab === 'eleicoes') return /^el_/.test(ae.id || '');
+  if (currentTab === 'admin')    return /^(el|ed|rc|rf|new)_/.test(ae.id || '');
   return false;
 }
 
@@ -753,12 +729,23 @@ function gravarJogo(j) {
     const base = atual || {};
     // ESPN ainda sem placar mas o admin já lançou à mão: mantém o resultado e o status do admin
     const manual = !j.resultado && base.resultado?.casa != null;
-    return {
+    const novo = {
       ...base, ...j,
       resultado: j.resultado || base.resultado || {casa:null, fora:null},
       status: manual ? base.status : j.status,
       atualizadoPor: currentUser.uid, // as regras exigem: fica registrado quem gravou
     };
+    if (atual && !currentUser.isAdmin) {
+      // Regras: só admin muda o horário (senão dava pra empurrar o apito e palpitar com o jogo rolando).
+      // Jogo remarcado pela ESPN só atualiza quando um admin abrir o site.
+      Object.assign(novo, {kickoff: base.kickoff, data: base.data, hora: base.hora});
+      // ...e placar só do apito até 4h depois do fim
+      const agora = Date.now();
+      if (agora < base.kickoff) novo.resultado = base.resultado || {casa:null, fora:null};
+      else if (['FT','AET','PEN'].includes(base.status) && agora > base.kickoff + 4*3600000)
+        Object.assign(novo, {resultado: base.resultado || {casa:null, fora:null}, status: base.status});
+    }
+    return novo;
   });
 }
 
@@ -1246,7 +1233,8 @@ function renderRanking() {
     h+=`<div class="pts-row"><span>${l}</span><span class="${c}" style="font-weight:700;white-space:nowrap">${p}</span></div>`;
   });
   h+=`</div><div style="margin-top:11px;padding-top:10px;border-top:1px solid var(--border)"><div style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--gold);letter-spacing:1px;margin-bottom:7px">📈 Multiplicadores por Fase</div><div class="pts-grid">`;
-  [['📋 Rodada / Fase de Grupos','×1'],['🎟️ 16 Avos de Final','×1,25'],['🔥 Oitavas de Final','×1,5'],['💥 Quartas de Final','×2'],['⚔️ Semifinal','×2,5'],['🥉 Disputa de 3º Lugar','×2,5'],['🏆 Final','×3']].forEach(([l,m])=>{
+  [['📋 Rodada / Fase de Grupos','×1'],['🎟️ 16 Avos de Final','×1,25'],['🔥 Oitavas de Final','×1,5'],['💥 Quartas de Final','×2'],['⚔️ Semifinal','×2,5'],['🥉 Disputa de 3º Lugar','×2,5'],['🏆 Final','×3'],
+   ...(modoCopa ? [] : [['🔥 Clássico pernambucano (Sport, Náutico, Santa Cruz)','×2 (ou o da fase, se maior)']])].forEach(([l,m])=>{
     h+=`<div class="pts-row"><span>${l}</span><span style="font-weight:700;color:var(--gold);white-space:nowrap">${m}</span></div>`;
   });
   h+=`</div></div></div>`;
@@ -1552,16 +1540,18 @@ function renderJogos() {
 function renderPalpitar() {
   const jogos = getJogos();
   const hoje  = todayBRT();
+  // Dá pra adiantar o palpite de até uma semana (ex: a rodada do fim de semana)
+  const limite      = new Date(Date.parse(hoje) + 7*86400000).toISOString().substring(0,10);
   const jogosHoje   = jogos.filter(j => diaExibicao(j) === hoje);
-  const abertos     = jogosHoje.filter(j => jogoAberto(j));
+  const abertos     = jogos.filter(j => jogoAberto(j) && diaExibicao(j) <= limite);
   const fechadosHoje= jogosHoje.filter(j => !jogoAberto(j));
-  const proximosDias= [...new Set(jogos.filter(j=>diaExibicao(j)>hoje).map(j=>diaExibicao(j)))].sort();
+  const proximosDias= [...new Set(jogos.filter(j=>diaExibicao(j)>limite).map(j=>diaExibicao(j)))].sort();
   const proximoDia  = proximosDias[0] || null;
 
-  let h = `<div class="sec-title">✏️ Palpites de Hoje</div>`;
+  let h = `<div class="sec-title">✏️ Palpites Abertos</div>`;
 
-  if (!jogosHoje.length) {
-    h += `<div class="empty" style="padding:40px 20px"><div style="font-size:40px;margin-bottom:12px">😴</div>Sem jogos hoje!<br>${proximoDia ? `<span style="color:var(--gold)">Próximos jogos: ${fmtDate(proximoDia)}</span><br><span style="font-size:11px">Os palpites aparecem aqui nesse dia.</span>` : 'Fique de olho!'}</div>`;
+  if (!abertos.length && !fechadosHoje.length) {
+    h += `<div class="empty" style="padding:40px 20px"><div style="font-size:40px;margin-bottom:12px">😴</div>Nenhum jogo nos próximos 7 dias!<br>${proximoDia ? `<span style="color:var(--gold)">Próximos jogos: ${fmtDate(proximoDia)}</span><br><span style="font-size:11px">Os palpites abrem aqui uma semana antes.</span>` : 'Fique de olho!'}</div>`;
     return h;
   }
 
@@ -1650,7 +1640,7 @@ function renderAdmin() {
   if (comRes.length) {
     h+=`<div class="admin-box"><div class="admin-box-title">✅ Resultados Registrados</div>`;
     comRes.forEach(jogo=>{
-      h+=`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:7px;padding:8px 11px;margin-bottom:5px;flex-wrap:wrap;gap:6px"><div><span style="font-weight:600;font-size:12px">${escudo(jogo.casa, jogo.logoCasa)} ${esc(jogo.casa)} ${esc(jogo.resultado.casa)}x${esc(jogo.resultado.fora)} ${esc(jogo.fora)} ${escudo(jogo.fora, jogo.logoFora)}</span><span style="font-size:10px;color:var(--text2);display:block">${fmtDate(jogo.data)} · ${rotulo(jogo)}</span></div><button class="btn-danger" onclick="resetRes(${js(jogo._id)})">✏️ Editar</button></div>`;
+      h+=`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:7px;padding:8px 11px;margin-bottom:5px;flex-wrap:wrap;gap:6px"><div><span style="font-weight:600;font-size:12px">${escudo(jogo.casa, jogo.logoCasa)} ${esc(jogo.casa)} ${esc(jogo.resultado.casa)}x${esc(jogo.resultado.fora)} ${esc(jogo.fora)} ${escudo(jogo.fora, jogo.logoFora)}</span><span style="font-size:10px;color:var(--text2);display:block">${fmtDate(jogo.data)} · ${rotulo(jogo)}${quemGravou(jogo)}</span></div><button class="btn-danger" onclick="resetRes(${js(jogo._id)})">✏️ Editar</button></div>`;
     });
     h+=`</div>`;
   }
@@ -1689,10 +1679,40 @@ function renderAdmin() {
       <div class="form-group-admin"><label class="form-label-admin">Fase / Rodada</label><input type="text" class="form-input-admin" id="new_fase" placeholder="ex: Rodada 5, Semifinal, Final..."></div>
     </div>
     <button class="btn-sm" style="margin-top:10px;padding:9px 22px" onclick="addJogo()">➕ Adicionar Jogo</button></div>`;
+  // Jogos manuais (os da ESPN a sync recria/corrige sozinha): mudar data/hora ou excluir. Time errado = excluir e cadastrar de novo.
+  const manuais = getJogos().filter(j => !j._id.startsWith('espn_'));
+  if (manuais.length) {
+    h+=`<div class="admin-box"><div class="admin-box-title">🗂️ Jogos Manuais (${manuais.length})</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Mudar a data reabre ou fecha os palpites pelo novo horário. Excluir apaga também os palpites do jogo.</div>`;
+    manuais.forEach(jogo => {
+      const id = esc(jogo._id);
+      h+=`<div class="res-row"><div class="res-match-name">${esc(jogo.casa)} x ${esc(jogo.fora)} <span style="color:var(--text2);font-weight:400"> — ${rotulo(jogo)}</span></div>
+        <div class="res-inputs"><input type="date" class="form-input-admin" id="ed_data_${id}" value="${esc(jogo.data)}"><input type="time" class="form-input-admin" id="ed_hora_${id}" value="${esc(jogo.hora)}">
+        <button class="btn-sm" onclick="editarDataJogo(${js(jogo._id)})">📅 Salvar data</button><button class="btn-danger" onclick="excluirJogo(${js(jogo._id)})">🗑 Excluir</button></div></div>`;
+    });
+    h+=`</div>`;
+  }
   h+=elx.renderEleicoesAdmin();
   return h;
 }
 
+// Quem gravou o jogo por último (o banco exige atualizadoPor): ajuda a achar placar mexido na mão
+function quemGravou(jogo) {
+  const u = Object.values(dbData.users||{}).find(u => u.uid && u.uid === jogo.atualizadoPor);
+  return u ? ` · gravado por ${esc(u.displayName)}` : '';
+}
+window.editarDataJogo = async id => {
+  const data = document.getElementById(`ed_data_${id}`)?.value, hora = document.getElementById(`ed_hora_${id}`)?.value;
+  if (!data || !hora) { showToast('Preencha data e hora!', true); return; }
+  await update(ref(db, `${MP}/jogos/${id}`), {data, hora, kickoff: kickoffDe(data, hora), atualizadoPor: currentUser.uid});
+  showToast('Data atualizada! 📅');
+};
+window.excluirJogo = async id => {
+  const j = dbData.jogos?.[id];
+  if (!j || !confirm(`Excluir ${j.casa} x ${j.fora}? Os palpites desse jogo também somem.`)) return;
+  await update(ref(db), {[`${MP}/jogos/${id}`]: null, [`palpites/${id}`]: null, [`palpitou/${id}`]: null});
+  showToast('Jogo excluído.');
+};
 window.forcSync = async () => { showToast('Sincronizando...'); await syncFromApi(true); };
 window.onPalpiteDraft = (id, lado, val) => {
   palpiteDrafts[id] = palpiteDrafts[id] || {};
@@ -1832,15 +1852,12 @@ window.closePlayerModal = () => {
   document.getElementById('achv-overlay')?.remove();
 };
 
-// A sessão agora é do Firebase Auth (onAuthStateChanged, lá em cima): o localStorage não guarda mais quem está logado
-// ====================== HALL DA VERGONHA ======================
-
 // ====================== HALL DA VERGONHA ======================
 
 function computeHallDaVergonha() {
   const jogos = getJogos();
   const rankingPorDia = computeRankingPorDia();
-  
+
   const allPlayers = [...new Set([
     ...KNOWN_PLAYERS,
     ...Object.values(dbData.users || {}).map(u => u.displayName)
@@ -1851,20 +1868,26 @@ function computeHallDaVergonha() {
     peFrio: [],
     dormiuNoPonto: [],
     investidorOi: [],
-    zebraMorto: [],
     maratonistaLanterna: [],
     apostadorCompulsivo: []
   };
+
+  // "Dormiu no ponto" só conta jogo que já fechou, a partir do 1º palpite da pessoa (quem entrou depois não é punido)
+  const agora = Date.now();
+  const estreia = {};
+  jogos.forEach(j => Object.keys(j.palpites||{}).forEach(n => {
+    const k = kickoffJogo(j) || 0;
+    if (estreia[n] == null || k < estreia[n]) estreia[n] = k;
+  }));
 
   const stats = {};
   allPlayers.forEach(p => {
     stats[p] = {
       semPalpite: 0,
-      exactErrados: 0,
+      empateErrado: 0,
       peFrio: 0,
       maxSeqSemPontos: 0,
       currentSeq: 0,
-      zebraErrada: 0,
       diff3mais: 0,
     };
   });
@@ -1872,12 +1895,13 @@ function computeHallDaVergonha() {
   jogos.forEach(jogo => {
     const palpites = jogo.palpites || {};
     const temRes = jogo.resultado?.casa != null;
+    const k = kickoffJogo(jogo);
 
     allPlayers.forEach(player => {
       const pal = palpites[player];
 
       if (!pal) {
-        stats[player].semPalpite++;
+        if (k && k <= agora && estreia[player] != null && k >= estreia[player]) stats[player].semPalpite++;
       } else {
         const diff = Math.abs(+pal.casa - +pal.fora);
         if (diff >= 3) stats[player].diff3mais++;
@@ -1885,11 +1909,11 @@ function computeHallDaVergonha() {
         if (temRes) {
           const tipo = classify(jogo.resultado, pal);
 
-          if (tipo === 'almost') stats[player].exactErrados++;
+          if (tipo === 'almost') stats[player].empateErrado++;
 
-          if (+pal.casa > +pal.fora && +jogo.resultado.casa < +jogo.resultado.fora) {
-            stats[player].peFrio++;
-          }
+          // Apostou num vencedor e o outro time ganhou (pros dois lados)
+          const pSinal = Math.sign(+pal.casa - +pal.fora), rSinal = Math.sign(+jogo.resultado.casa - +jogo.resultado.fora);
+          if (pSinal && rSinal && pSinal !== rSinal) stats[player].peFrio++;
 
           const pts = calcPts(jogo.resultado, pal);
           if (pts && pts.pts === 0) {
@@ -1916,7 +1940,7 @@ function computeHallDaVergonha() {
   allPlayers.forEach(p => {
     const s = stats[p];
     if (s.semPalpite >= 1)     hall.dormiuNoPonto.push({player: p, count: s.semPalpite});
-    if (s.exactErrados >= 1)   hall.profetaReverso.push({player: p, count: s.exactErrados});
+    if (s.empateErrado >= 1)   hall.profetaReverso.push({player: p, count: s.empateErrado});
     if (s.peFrio >= 1)         hall.peFrio.push({player: p, count: s.peFrio});
     if (s.maxSeqSemPontos >= 3) hall.investidorOi.push({player: p, count: s.maxSeqSemPontos});
     if (s.diff3mais >= 2)      hall.apostadorCompulsivo.push({player: p, count: s.diff3mais});
@@ -1931,32 +1955,14 @@ function computeHallDaVergonha() {
   return hall;
 }
 
-function classify(real, pal) {
-  if (real?.casa == null || !pal) return null;
-  const rc = +real.casa, rf = +real.fora, pc = +pal.casa, pf = +pal.fora;
-  if ([rc, rf, pc, pf].some(isNaN)) return null;
-  if (rc === pc && rf === pf) return 'exact';
-  const pD = pc === pf, rD = rc === rf;
-  if (pD && !rD) return 'almost';
-  if (rD && !pD) return 'miss';
-  if (rD && pD)  return 'draw';
-  const rWC = rc > rf, pWC = pc > pf;
-  if (rWC !== pWC) return 'miss';
-  const wg = rWC ? rc : rf, pwg = pWC ? pc : pf;
-  if (pwg === wg) return 'vg';
-  if ((rc - rf) === (pc - pf)) return 'diff';
-  const lg = rWC ? rf : rc, plg = pWC ? pf : pc;
-  if (plg === lg) return 'lg';
-  return 'win';
-}
-
 function renderVergonha() {
   const hall = computeHallDaVergonha();
   let h = `<div class="sec-title">🤡 Hall da Vergonha</div>
            <div style="color:var(--text2);font-size:13px;margin-bottom:18px">Os destaques negativos do bolão</div>`;
 
   const categorias = [
-    { emoji: '🤡', title: 'Profeta Reverso',     key: 'profetaReverso',     desc: 'Mais palpites exatos errados' },
+    { emoji: '🤡', title: 'Profeta Reverso',     key: 'profetaReverso',     desc: 'Mais vezes que cravou empate e não foi empate' },
+    { emoji: '😴', title: 'Dormiu no Ponto',     key: 'dormiuNoPonto',      desc: 'Mais jogos que fecharam sem palpite' },
     { emoji: '💀', title: 'Pé Frio',            key: 'peFrio',             desc: 'Mais vezes o time que escolheu perdeu' },
     { emoji: '📉', title: 'Investidor da Oi',   key: 'investidorOi',       desc: 'Maior sequência sem pontuar' },
     { emoji: '🎰', title: 'Apostador Compulsivo', key: 'apostadorCompulsivo', desc: 'Mais palpites com 3+ gols de diferença' },
@@ -1997,18 +2003,6 @@ function renderVergonha() {
 
   return h;
 }
-
-window.toggleAccordion = (id) => {
-  const el = document.getElementById(id);
-  if (!el) return;
-
-  el.classList.toggle('hidden');
-
-  const icon = document.querySelector(`[data-acc="${id}"]`);
-  if (icon) {
-    icon.textContent = el.classList.contains('hidden') ? '▶' : '▼';
-  }
-};
 
 // ── Bolão Eleições 2026 (jogo extra) ──
 const elx = initEleicoes({
