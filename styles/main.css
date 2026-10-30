@@ -548,3 +548,4 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .resumo-linha small{color:var(--text2)}
 .resumo-linha .av{width:16px;height:16px}
 .resumo-extra{font-size:11px;color:var(--text2);margin-top:6px}
+.footer{text-align:center;font-size:11px;color:var(--text2);padding:18px 16px 24px;border-top:1px solid var(--border);margin-top:20px}
