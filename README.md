@@ -2,6 +2,8 @@
 
 Bolão da galera: jogos do **Sport, Náutico, Santa Cruz e Seleção**. Site estático (HTML + JavaScript puro) com Firebase.
 
+🌐 **https://bolaomuitapaz.com.br** — hospedado no Netlify (publica sozinho a cada push no `main`). DNS no Registro.br, modo avançado: `A @ 75.2.60.5` e `CNAME www bolaopaz26.netlify.app`.
+
 ## Abas
 
 - **Rank** — classificação, gráfico de evolução, Prêmio Vidente (mais placares exatos) e conquistas de cada jogador. Já soma os pontos da tabela antiga, de antes do site.
