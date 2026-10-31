@@ -8,7 +8,7 @@ Bolão da galera: jogos do **Sport, Náutico, Santa Cruz e Seleção**. Site est
 
 - **Rank** — classificação, gráfico de evolução, Prêmio Vidente (mais placares exatos) e conquistas de cada jogador. Já soma os pontos da tabela antiga, de antes do site.
 - **Jogos** — jogos de hoje, anteriores e próximos, com os palpites de todo mundo depois que o jogo começa.
-- **Palpitar** — palpites abertos dos próximos 7 dias. Fecham no horário do jogo.
+- **Palpitar** — palpites só no dia do jogo. Fecham no horário do jogo.
 - **Resenha** — chat da galera, com o resumo automático de cada jogo que termina.
 - **Vergonha** — Hall da Vergonha.
 - **Copa 2026** — arquivo do bolão da Copa (só leitura).

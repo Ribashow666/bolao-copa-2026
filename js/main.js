@@ -1540,18 +1540,17 @@ function renderJogos() {
 function renderPalpitar() {
   const jogos = getJogos();
   const hoje  = todayBRT();
-  // Dá pra adiantar o palpite de até uma semana (ex: a rodada do fim de semana)
-  const limite      = new Date(Date.parse(hoje) + 7*86400000).toISOString().substring(0,10);
+  // Regra do bolão: palpite só no dia do jogo
   const jogosHoje   = jogos.filter(j => diaExibicao(j) === hoje);
-  const abertos     = jogos.filter(j => jogoAberto(j) && diaExibicao(j) <= limite);
+  const abertos     = jogosHoje.filter(j => jogoAberto(j));
   const fechadosHoje= jogosHoje.filter(j => !jogoAberto(j));
-  const proximosDias= [...new Set(jogos.filter(j=>diaExibicao(j)>limite).map(j=>diaExibicao(j)))].sort();
+  const proximosDias= [...new Set(jogos.filter(j=>diaExibicao(j)>hoje).map(j=>diaExibicao(j)))].sort();
   const proximoDia  = proximosDias[0] || null;
 
-  let h = `<div class="sec-title">✏️ Palpites Abertos</div>`;
+  let h = `<div class="sec-title">✏️ Palpites de Hoje</div>`;
 
-  if (!abertos.length && !fechadosHoje.length) {
-    h += `<div class="empty" style="padding:40px 20px"><div style="font-size:40px;margin-bottom:12px">😴</div>Nenhum jogo nos próximos 7 dias!<br>${proximoDia ? `<span style="color:var(--gold)">Próximos jogos: ${fmtDate(proximoDia)}</span><br><span style="font-size:11px">Os palpites abrem aqui uma semana antes.</span>` : 'Fique de olho!'}</div>`;
+  if (!jogosHoje.length) {
+    h += `<div class="empty" style="padding:40px 20px"><div style="font-size:40px;margin-bottom:12px">😴</div>Sem jogos hoje!<br>${proximoDia ? `<span style="color:var(--gold)">Próximos jogos: ${fmtDate(proximoDia)}</span><br><span style="font-size:11px">Os palpites aparecem aqui nesse dia.</span>` : 'Fique de olho!'}</div>`;
     return h;
   }
 
