@@ -7,6 +7,9 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdn.jsdelivr.net https://*.firebaseio.com https://apis.google.com; connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://site.api.espn.com; img-src 'self' data: blob: https://a.espncdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; frame-src https://bolao-copa-2026-ef7f5.firebaseapp.com https://*.firebaseio.com; object-src 'none'; base-uri 'self'; form-action 'none'">
 <title>Bolão Muita Paz – PE</title>
 <link rel="icon" type="image/png" href="assets/image.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<meta name="theme-color" content="#0D3318">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles/main.css">
@@ -121,5 +124,6 @@
 <div class="toast" id="toast"></div>
 <script type="module" src="js/main.js">
 </script>
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </body>
 </html>

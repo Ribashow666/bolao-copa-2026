@@ -1,0 +1,17 @@
+{
+  "name": "Bolão Muita Paz",
+  "short_name": "Bolão Paz",
+  "description": "Bolão da galera: Sport, Náutico, Santa Cruz e Seleção",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "pt-BR",
+  "background_color": "#06200E",
+  "theme_color": "#0D3318",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
