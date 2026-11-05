@@ -8,6 +8,9 @@ import { BADGE_DEFS, RARITY_META, computeAchievements } from "./achievements.js"
 import { initEleicoes } from "./eleicoes.js";
 import { classify, calcPts, getMulti } from "./pontos.js";
 import { montarLembretes } from "./lembretes.js";
+import { NOSSOS_TIMES, STATUS_FIM, STATUS_AO_VIVO, paraBRT, mesclarJogo, buscarAgenda, buscarAoVivo, emAndamentoDe } from "./espn.js";
+import { KNOWN_PLAYERS, PONTOS_ANTERIORES, toKey, classicoDe, multiDe, kickoffDe, kickoffJogo, diaExibicao, normTeam, canonTeam,
+  deduplicarJogos, rankingDe, evolucaoDe, rankingPorDiaDe } from "./nucleo.js";
 
 const FB_CONFIG = {
   apiKey:"AIzaSyCFS5qEkn3WmoXlWPHi7gw9ScywnrzrEAs",
@@ -24,11 +27,8 @@ const auth  = getAuth(fbApp);
 // Login é pelo apelido: por baixo, cada jogador é um e-mail fictício no Firebase Auth (nenhum e-mail é enviado)
 const emailDe = key => `${key}@bolao-muitapaz.app`;
 
-const KNOWN_PLAYERS = ['Milho','Wly','Igor','Jucas','Wendel','Pedru','Vini','Melk','Gilles'];
 // Na aba Copa 2026 só aparece quem palpitou na Copa (o Gilles entrou depois)
 const jogadoresFixos = () => modoCopa ? [] : KNOWN_PLAYERS;
-// Pontos da tabela antiga (antes do site), somados ao que o site calcula. Vai até NAU 0x2 NOV.
-const PONTOS_ANTERIORES = {Wly:{pts:615, exatos:9}, Igor:{pts:511, exatos:7}, Milho:{pts:497, exatos:7}, Jucas:{pts:427, exatos:8}, Wendel:{pts:348, exatos:4}};
 const anterior = n => (!modoCopa && PONTOS_ANTERIORES[n]) || {pts:0, exatos:0};
 const EMOJIS = {Milho:'🌽',Wly:'🦅',Igor:'🐺',Jucas:'🦁',Wendel:'⚡',Pedru:'🐉',Vini:'🐆',Melk:'🌊',Gilles:'🦈'};
 const FLAGS = {
@@ -53,18 +53,8 @@ const FLAGS = {
 // ── Bolão Muita Paz: Sport, Náutico, Santa Cruz e Seleção ──
 // Jogos e config ficam em bolao/mp/ — os jogos antigos da Copa (bolao/jogos) ficam guardados intactos.
 const MP = 'bolao/mp';
-// API pública (não oficial, sem chave) do site da ESPN. Cobre Série A/B, Copa do Brasil, Copa do Nordeste,
-// amistosos e Eliminatórias. NÃO cobre Série C/D nem Pernambucano: esses jogos entram pelo cadastro manual.
-const ESPN = 'https://site.api.espn.com/apis/site/v2/sports/soccer/all';
 const SYNC_COMPLETA_MS = 30*60000;  // agenda dos 4 times: 8 requisições a cada 30 min
 const SYNC_AO_VIVO_MS  = 2*60000;   // placar de jogo em andamento: 1 requisição por jogo a cada 2 min
-// IDs dos times na ESPN (conferidos em out/2026)
-const NOSSOS_TIMES = [
-  {key:'sport',     nome:'Sport',      espnId:7635},
-  {key:'nautico',   nome:'Náutico',    espnId:7633},
-  {key:'santacruz', nome:'Santa Cruz', espnId:4929},
-  {key:'brasil',    nome:'Brasil',     espnId:205},
-];
 
 let currentUser = null;
 let currentTab  = 'ranking';
@@ -110,29 +100,15 @@ const emoRaw  = n => perfilDe(n).emoji || EMOJIS[n] || '👤'; // texto puro (le
 const emo     = n => { const f = perfilDe(n).foto; return fotoOk(f) ? `<img class="av" src="${f}" alt="">` : esc(emoRaw(n)); };
 const fmtDate = d => { if(!d) return ''; const [,m,day]=String(d).split('-'); return esc(`${day}/${m}`); };
 const fmtTime = t => t ? esc(String(t).substring(0,5)) : '';
-const toKey   = s => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+
 
 const ptsClass = t=>({exact:'pts-exact',vg:'pts-vg',diff:'pts-diff',draw:'pts-draw',lg:'pts-lg',win:'pts-win',almost:'pts-almost',miss:'pts-zero'}[t]||'pts-zero');
 const ptsLabel = t=>({exact:'Exato!',vg:'Venc+G✓',diff:'Venc+Dif',draw:'Emp✓',lg:'Venc+Gl',win:'Venc✓',almost:'~Emp',miss:'—'}[t]||'—');
 
-// Clássico pernambucano (Sport, Náutico, Santa Cruz entre si) vale ×2 — só de CLASSICO_DESDE em diante,
-// pra não mudar os pontos de jogo que já foi contado. Se for mata-mata, fica o multiplicador maior.
-const CLASSICO_DESDE = '2026-10-12';
-const TIMES_CLASSICO = {sport:'sport', sport_recife:'sport', nautico:'nautico', santa_cruz:'santacruz'};
-const ehClassico = j => !modoCopa && (j.data||'') >= CLASSICO_DESDE &&
-  TIMES_CLASSICO[toKey(j.casa||'')] && TIMES_CLASSICO[toKey(j.fora||'')] &&
-  TIMES_CLASSICO[toKey(j.casa)] !== TIMES_CLASSICO[toKey(j.fora)];
-const multiJogo = j => ehClassico(j) ? Math.max(2, getMulti(j.fase)) : getMulti(j.fase);
+// Clássico (regra no nucleo.js) não vale no arquivo da Copa
+const ehClassico = j => !modoCopa && classicoDe(j);
+const multiJogo = j => multiDe(j, ehClassico(j));
 const tagClassico = j => ehClassico(j) ? `<span class="badge badge-classico">🔥 Clássico ×${multiJogo(j)}</span>` : '';
-
-// data + hora (BRT) → timestamp
-function kickoffDe(data, hora) {
-  const [h, mi] = hora.split(':').map(Number);
-  const [y, mo, d] = data.split('-').map(Number);
-  return Date.UTC(y, mo-1, d, h+3, mi, 0);
-}
-// As regras do banco usam o campo kickoff pra fechar os palpites: a tela usa o mesmo valor
-const kickoffJogo = jogo => jogo.kickoff || (jogo.data && jogo.hora ? kickoffDe(jogo.data, jogo.hora) : null);
 
 function jogoAberto(jogo) {
   const k = kickoffJogo(jogo);
@@ -159,183 +135,19 @@ function todayBRT() {
   return brt.toISOString().substring(0,10);
 }
 
-// ── Retorna o "dia de exibição" do jogo: jogos de madrugada (antes das 06h) aparecem no dia anterior ──
-function diaExibicao(jogo) {
-  if (!jogo.hora) return jogo.data;
-  const [h] = jogo.hora.split(':').map(Number);
-  if (h < 6) {
-    const d = new Date(jogo.data + 'T12:00:00');
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().substring(0, 10);
-  }
-  return jogo.data;
-}
-
-// Normaliza nome de time pra comparar entre fontes diferentes (maiúsc., acento, espaço)
-const normTeam = s => (s||'').toLowerCase().trim()
-  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-  .replace(/\s+/g,' ');
-
-// ── Aliases: mesma seleção, nomes diferentes entre fontes (API oficial FIFA vs nomes "comuns") ──
-// Causa raiz do bug: "Turkey" (cadastro manual/fonte antiga) x "Türkiye" (API openfootball)
-// não batem em normTeam(), então nunca são vistos como o mesmo jogo e a duplicata sempre volta.
-const TEAM_ALIASES = {
-  'turkey':'turkiye', 'turkiye':'turkiye',
-  'usa':'unitedstates', 'us':'unitedstates', 'united states':'unitedstates', 'united states of america':'unitedstates',
-  'south korea':'korearepublic', 'korea republic':'korearepublic', 'korea, republic of':'korearepublic',
-  'ivory coast':'cotedivoire', "cote d'ivoire":'cotedivoire', 'cote divoire':'cotedivoire',
-  'bosnia and herzegovina':'bosniaherzegovina', 'bosnia & herzegovina':'bosniaherzegovina', 'bosnia':'bosniaherzegovina',
-  'czech republic':'czechia', 'czechia':'czechia',
-  'cape verde':'capeverde', 'cabo verde':'capeverde',
-  'dr congo':'congodr', 'democratic republic of the congo':'congodr', 'congo dr':'congodr',
-  'north macedonia':'macedonia', 'macedonia':'macedonia',
-};
-
-// Chave canônica do time: resolve aliases por cima da normalização, pra unir times com nomes diferentes
-function canonTeam(name) {
-  const nt = normTeam(name);
-  return TEAM_ALIASES[nt] || nt.replace(/\s+/g, '');
-}
-
-// "Quanto de informação" um registro de jogo tem — usado pra decidir qual cópia manter
-function scoreJogo(j) {
-  return (j.resultado?.casa != null ? 2 : 0) + Object.keys(j.palpites||{}).length;
-}
-
-// Agrupa uma lista de jogos (com _id) por casa+fora, tolerando até 1 dia de diferença de data.
-// Reusado tanto pelo getJogos() (dedup em memória) quanto pelo admin (diagnóstico/limpeza no banco).
-function agruparJogos(lista) {
-  const groups = [];
-  for (const j of lista) {
-    const ct = canonTeam(j.casa), ft = canonTeam(j.fora);
-    const jDate = j.data ? new Date(j.data+'T00:00:00') : null;
-    const target = groups.find(g => {
-      if (g.ct !== ct || g.ft !== ft) return false;
-      if (!jDate || !g.date) return true;
-      return Math.abs((jDate - g.date) / 86400000) <= 1;
-    });
-    if (target) target.items.push(j);
-    else groups.push({ct, ft, date: jDate, items: [j]});
-  }
-  return groups;
-}
-
-// Fase "Copa do Mundo" é só um fallback genérico (quando a fonte não trouxe group/round).
-// Ao mesclar duplicatas, sempre preferimos a fase específica de qualquer cópia que a tenha.
-function bestFase(items) {
-  const generic = f => !f || f === 'Copa do Mundo';
-  const specific = items.find(it => !generic(it.fase));
-  return specific ? specific.fase : (items[0].fase || '');
-}
-
-// ── DEDUPLICAR jogos por casa+fora, tolerando até 1 dia de diferença de data
-//    (jogos vindos de fontes/fusos diferentes podem cair em datas vizinhas) ──
+// Jogos do bolão (ou do arquivo da Copa), sem duplicatas (regra no nucleo.js)
 function getJogos() {
   // Aba "Copa 2026": mesmo cálculo de ranking/jogos, mas lendo o arquivo da Copa (bolao/jogos)
   // No bolão atual os palpites ficam fora do jogo (palpites/{jogo}), pra poderem ficar escondidos até o apito
-  const all = Object.entries((modoCopa ? dbData.copaJogos : dbData.jogos)||{})
-    .map(([id,j])=>({...j, _id:id, ...(modoCopa ? {} : {palpites: palpitesVivos[id] || {}, palpitou: palpitouVivo[id] || {}})}))
-    .sort((a,b)=>{
-      const dd = a.data>b.data ? 1 : a.data<b.data ? -1 : 0;
-      return dd || ((a.hora||'')>(b.hora||'') ? 1 : -1);
-    });
-
-  return agruparJogos(all).map(g => {
-    let best = g.items[0], bestScore = scoreJogo(best);
-    g.items.slice(1).forEach(item => {
-      const s = scoreJogo(item);
-      if (s > bestScore) { best = item; bestScore = s; }
-    });
-    // Mescla palpites de todas as cópias do mesmo jogo, pra ninguém perder o voto
-    const palpitesMerged = {};
-    const palpitouMerged = {};
-    g.items.forEach(item => { Object.assign(palpitesMerged, item.palpites||{}); Object.assign(palpitouMerged, item.palpitou||{}); });
-    return {...best, fase: bestFase(g.items), palpites: palpitesMerged, palpitou: palpitouMerged};
-  });
+  return deduplicarJogos(Object.entries((modoCopa ? dbData.copaJogos : dbData.jogos)||{})
+    .map(([id,j])=>({...j, _id:id, ...(modoCopa ? {} : {palpites: palpitesVivos[id] || {}, palpitou: palpitouVivo[id] || {}})})));
 }
 
 // conta(jogo): quais jogos com resultado entram na soma (o resumo da Resenha usa pra ver o ranking antes/depois de um jogo)
-function computeRanking(conta = () => true) {
-  const pts={}, exact={};
-  jogadoresFixos().forEach(j=>{pts[j]=anterior(j).pts; exact[j]=anterior(j).exatos;});
-  Object.values(dbData.users||{}).forEach(u=>{
-    if(pts[u.displayName]==null) { pts[u.displayName]=anterior(u.displayName).pts; exact[u.displayName]=anterior(u.displayName).exatos; }
-  });
-  getJogos().forEach(jogo=>{
-    if (jogo.resultado?.casa == null || !conta(jogo)) return;
-    const multi = multiJogo(jogo);
-    Object.entries(jogo.palpites||{}).forEach(([jogador,p])=>{
-      const r=calcPts(jogo.resultado,p);
-      if(r){
-        pts[jogador]=(pts[jogador]||0)+(r.pts*multi);
-        if(r.tipo==='exact') exact[jogador]=(exact[jogador]||0)+1;
-      }
-    });
-  });
-  const allPalPlayers = new Set();
-  getJogos().forEach(j=>Object.keys(j.palpites||{}).forEach(n=>allPalPlayers.add(n)));
-  const visible = Object.entries(pts).filter(([n])=>jogadoresFixos().includes(n)||allPalPlayers.has(n));
-  return {sorted: visible.sort((a,b)=>b[1]-a[1]), exact};
-}
-
-// ── Evolução de pontos acumulados por jogador, agrupado por dia de exibição ──
-function computeEvolucao() {
-  const jogos = getJogos()
-    .filter(j => j.resultado?.casa != null)
-    .sort((a,b)=>{
-      const da=diaExibicao(a), db_=diaExibicao(b);
-      return da>db_ ? 1 : da<db_ ? -1 : 0;
-    });
-
-  const allPalPlayers = new Set();
-  jogos.forEach(j=>Object.keys(j.palpites||{}).forEach(n=>allPalPlayers.add(n)));
-  const jogadores = [...new Set([...jogadoresFixos(), ...allPalPlayers])];
-
-  const dias = [...new Set(jogos.map(j=>diaExibicao(j)))].sort();
-  if (!dias.length) return {dias:[], series:{}};
-
-  const acumulado = {};
-  jogadores.forEach(j=>acumulado[j]=anterior(j).pts);
-
-  const series = {};
-  jogadores.forEach(j=>series[j]=[]);
-
-  dias.forEach(dia=>{
-    const jogosDoDia = jogos.filter(j=>diaExibicao(j)===dia);
-    jogosDoDia.forEach(jogo=>{
-      const multi = multiJogo(jogo);
-      Object.entries(jogo.palpites||{}).forEach(([jogador,p])=>{
-        const r = calcPts(jogo.resultado,p);
-        if (r) acumulado[jogador] = (acumulado[jogador]||0) + (r.pts*multi);
-      });
-    });
-    jogadores.forEach(j=>series[j].push(acumulado[j]));
-  });
-
-  return {dias, series};
-}
-function computeRankingPorDia() {
-  const { dias, series } = computeEvolucao();
-
-  const rankings = {};
-
-  dias.forEach((dia, idx) => {
-    const rankingDia = Object.entries(series)
-      .map(([jogador, pontos]) => ({
-        jogador,
-        pontos: pontos[idx]
-      }))
-      .sort((a, b) => b.pontos - a.pontos);
-
-    rankings[dia] = {};
-
-    rankingDia.forEach((item, pos) => {
-      rankings[dia][item.jogador] = pos + 1;
-    });
-  });
-
-  return rankings;
-}
+const computeRanking = (conta = () => true) => rankingDe({jogos: getJogos(), fixos: jogadoresFixos(),
+  nomes: Object.values(dbData.users||{}).map(u => u.displayName), anterior, multi: multiJogo, conta});
+const computeEvolucao = () => evolucaoDe({jogos: getJogos(), fixos: jogadoresFixos(), anterior, multi: multiJogo});
+const computeRankingPorDia = () => rankingPorDiaDe(computeEvolucao());
 
 function showToast(msg, isErr=false) {
   const t=document.getElementById('toast');
@@ -630,135 +442,15 @@ function palpitesEleicoes() {
   return out;
 }
 
-// Timestamp → data/hora em BRT (UTC-3)
-function paraBRT(ts) {
-  const d = new Date(ts - 3*3600000);
-  return { data: d.toISOString().substring(0,10), hora: d.toISOString().substring(11,16) };
-}
-
-// Nome da competição em português. A ESPN manda "2026 Brasileiro Serie B", "2026 International Friendly"...
-function nomeCompeticao(nome) {
-  const n = (nome||'').replace(/^\d{4}\s+/, '').trim();
-  const l = n.toLowerCase();
-  const serie = l.match(/brasileir\w* serie ([a-d])/);
-  if (serie)                         return `Brasileirão Série ${serie[1].toUpperCase()}`;
-  if (l.includes('copa do brasil'))  return 'Copa do Brasil';
-  if (l.includes('nordeste'))        return 'Copa do Nordeste';
-  if (l.includes('pernambucano'))    return 'Pernambucano';
-  if (l.includes('libertadores'))    return 'Libertadores';
-  if (l.includes('sudamericana'))    return 'Sul-Americana';
-  if (l.includes('qualifying'))      return 'Eliminatórias';
-  if (l.includes('friendly'))        return 'Amistoso';
-  if (l.includes('copa am'))         return 'Copa América';
-  if (l.includes('world cup'))       return 'Copa do Mundo';
-  return n || 'Outros';
-}
-
-// Fase em português. Em pontos corridos a ESPN repete o nome da liga no lugar da fase → sem fase.
-// "Third Round" da Copa do Brasil é a 3ª fase, não disputa de 3º lugar.
-const ORDINAIS = {first:1, second:2, third:3, fourth:4, fifth:5, sixth:6};
-function nomeFase(fase, liga) {
-  const r = (fase||'').toLowerCase().trim();
-  if (!r || r === (liga||'').toLowerCase().trim()) return '';
-  if (r.includes('group'))         return 'Fase de Grupos';
-  if (r.includes('round of 32'))   return '16 avos de Final';
-  if (r.includes('round of 16'))   return 'Oitavas de Final';
-  if (r.includes('quarter'))       return 'Quartas de Final';
-  if (r.includes('semi'))          return 'Semifinal';
-  if (r.includes('3rd') || r.includes('third place')) return 'Disputa de 3º Lugar';
-  if (/^finals?$/.test(r))         return '🏆 Final';
-  const ord = r.match(/^(first|second|third|fourth|fifth|sixth) round/);
-  if (ord) return `${ORDINAIS[ord[1]]}ª Fase`;
-  return fase;
-}
-
-// Status da ESPN → códigos que o resto do app já usa (NS, 1H, HT, 2H, FT, AET, PEN...)
-function statusEspn(t) {
-  const n = t?.name || '';
-  if (n.includes('POSTPONED')) return 'PST';
-  if (n.includes('CANCELED') || n.includes('ABANDONED')) return 'CANC';
-  if (t?.state === 'pre') return 'NS';
-  if (t?.state === 'in') {
-    if (n.includes('HALFTIME')) return 'HT';
-    if (n.includes('SHOOTOUT')) return 'P';
-    if (n.includes('OVERTIME') || n.includes('EXTRA')) return 'ET';
-    if (n.includes('SECOND')) return '2H';
-    return '1H';
-  }
-  if (n.includes('PEN')) return 'PEN';
-  if (n.includes('AET')) return 'AET';
-  return 'FT';
-}
-
-// Placar sem pênaltis (com prorrogação, se houve). No schedule o score vem como objeto; no summary, como string.
-function placarEspn(competidores, status) {
-  if (['NS','PST','CANC'].includes(status)) return null;
-  const gols = lado => {
-    const s = competidores.find(c => c.homeAway === lado)?.score;
-    const v = typeof s === 'object' ? s?.value : s;
-    return v === '' || v == null || isNaN(+v) ? null : +v;
-  };
-  const casa = gols('home'), fora = gols('away');
-  return casa == null || fora == null ? null : {casa, fora};
-}
-
-async function espnGet(path) {
-  const resp = await fetch(ESPN + path);
-  if (!resp.ok) throw new Error(`ESPN HTTP ${resp.status}`);
-  return resp.json();
-}
-
-function eventoParaJogo(ev) {
-  const nossos = Object.fromEntries(NOSSOS_TIMES.map(t => [String(t.espnId), t.nome]));
-  const comp = ev.competitions?.[0] || {};
-  const lado = h => comp.competitors?.find(c => c.homeAway === h) || {};
-  const nome = c => nossos[c.team?.id] || c.team?.displayName || '?';
-  const kickoff = Date.parse(ev.date);
-  const status = statusEspn(comp.status?.type);
-  const liga = ev.season?.displayName || ev.league?.name || '';
-  return {
-    espnId: ev.id, kickoff, ...paraBRT(kickoff),
-    casa: nome(lado('home')), fora: nome(lado('away')),
-    logoCasa: lado('home').team?.logos?.[0]?.href || null, logoFora: lado('away').team?.logos?.[0]?.href || null,
-    competicao: nomeCompeticao(liga), fase: nomeFase(ev.seasonType?.name, liga),
-    status, resultado: placarEspn(comp.competitors || [], status),
-  };
-}
-
 function gravarJogo(j) {
-  return runTransaction(ref(db, `${MP}/jogos/espn_${j.espnId}`), atual => {
-    const base = atual || {};
-    // ESPN ainda sem placar mas o admin já lançou à mão: mantém o resultado e o status do admin
-    const manual = !j.resultado && base.resultado?.casa != null;
-    const novo = {
-      ...base, ...j,
-      resultado: j.resultado || base.resultado || {casa:null, fora:null},
-      status: manual ? base.status : j.status,
-      atualizadoPor: currentUser.uid, // as regras exigem: fica registrado quem gravou
-    };
-    if (atual && !currentUser.isAdmin) {
-      // Regras: só admin muda o horário (senão dava pra empurrar o apito e palpitar com o jogo rolando).
-      // Jogo remarcado pela ESPN só atualiza quando um admin abrir o site.
-      Object.assign(novo, {kickoff: base.kickoff, data: base.data, hora: base.hora});
-      // ...e placar só do apito até 4h depois do fim
-      const agora = Date.now();
-      if (agora < base.kickoff) novo.resultado = base.resultado || {casa:null, fora:null};
-      else if (['FT','AET','PEN'].includes(base.status) && agora > base.kickoff + 4*3600000)
-        Object.assign(novo, {resultado: base.resultado || {casa:null, fora:null}, status: base.status});
-    }
-    return novo;
-  });
+  return runTransaction(ref(db, `${MP}/jogos/espn_${j.espnId}`), atual => mesclarJogo(atual, j, {uid: currentUser.uid, admin: currentUser.isAdmin}));
 }
-
-const STATUS_FIM = ['FT','AET','PEN','CANC','PST'];
-const STATUS_AO_VIVO = ['1H','HT','2H','ET','BT','P','INT'];
 
 // Duas buscas: agenda dos 4 times (a cada 30 min) e placar dos jogos em andamento (a cada 2 min).
 // Os horários ficam no banco, então vários celulares abertos não repetem a mesma busca.
 async function syncFromApi(force=false) {
   const now = Date.now();
-  const emAndamento = Object.values(dbData.jogos).filter(j =>
-    j.espnId && !STATUS_FIM.includes(j.status) && now >= j.kickoff - 5*60000 && now < j.kickoff + 180*60000);
+  const emAndamento = emAndamentoDe(dbData.jogos, now);
   const completa = force || now - (dbData.lastSync||0) > SYNC_COMPLETA_MS;
   const aoVivo   = !completa && emAndamento.length && now - (dbData.lastLiveSync||0) > SYNC_AO_VIVO_MS;
   if (!completa && !aoVivo) return;
@@ -771,22 +463,9 @@ async function syncFromApi(force=false) {
     if (completa) {
       const inicio = dbData.config.inicio || now;
       if (!dbData.config.inicio) await set(ref(db, `${MP}/config/inicio`), inicio);
-      // Sem "fixture=true" vêm os jogos já disputados/em andamento; com ele, os próximos
-      const urls = NOSSOS_TIMES.flatMap(t => [`/teams/${t.espnId}/schedule`, `/teams/${t.espnId}/schedule?fixture=true`]);
-      const porId = {}; // clássico (ex: Sport x Náutico) vem na lista dos dois times
-      (await Promise.all(urls.map(espnGet))).forEach(r => (r.events||[]).forEach(ev => porId[ev.id] = ev));
-      const jaTemos = new Set(Object.values(dbData.jogos).map(j => j.espnId));
-      // Só entra jogo a partir do início do bolão (+ os que já estão no banco, pra atualizar placar)
-      jogos = Object.values(porId)
-        .filter(ev => jaTemos.has(ev.id) || Date.parse(ev.date) >= inicio - 86400000)
-        .map(eventoParaJogo);
+      jogos = await buscarAgenda(dbData.jogos, inicio);
     } else {
-      // Ao vivo: só placar e status mudam; o resto do jogo continua igual
-      jogos = await Promise.all(emAndamento.map(async j => {
-        const comp = (await espnGet(`/summary?event=${j.espnId}`)).header?.competitions?.[0] || {};
-        const status = statusEspn(comp.status?.type);
-        return {...j, status, resultado: placarEspn(comp.competitors || [], status)};
-      }));
+      jogos = await buscarAoVivo(emAndamento);
     }
     await Promise.all(jogos.map(gravarJogo));
     const liveCount = jogos.filter(j => STATUS_AO_VIVO.includes(j.status)).length;
