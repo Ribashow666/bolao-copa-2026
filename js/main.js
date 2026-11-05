@@ -7,6 +7,7 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWith
 import { BADGE_DEFS, RARITY_META, computeAchievements } from "./achievements.js";
 import { initEleicoes } from "./eleicoes.js";
 import { classify, calcPts, getMulti } from "./pontos.js";
+import { montarLembretes } from "./lembretes.js";
 
 const FB_CONFIG = {
   apiKey:"AIzaSyCFS5qEkn3WmoXlWPHi7gw9ScywnrzrEAs",
@@ -840,6 +841,22 @@ function render() {
   else if (currentTab === 'vergonha')  { el.innerHTML = renderVergonha(); }
   else if (currentTab === 'eleicoes')  { el.innerHTML = elx.renderEleicoes(); }
   atualizarBadgeChat();
+  agendarLembretes();
+}
+
+// Dentro do app Android existe window.BolaoApp: ele agenda as notificações no celular. No navegador não faz nada.
+let ultimosLembretes = '';
+function agendarLembretes() {
+  if (!window.BolaoApp || !currentUser || !primeiraCarga) return;
+  const agora = Date.now();
+  const jogos = semCopa(() => getJogos()
+    .filter(j => kickoffJogo(j) > agora && ![...STATUS_FIM, ...STATUS_AO_VIVO].includes(j.status))
+    .map(j => ({id: j._id, casa: j.casa, fora: j.fora, hora: String(j.hora || '').substring(0, 5), kickoff: kickoffJogo(j),
+                dia: diaExibicao(j), classico: !!ehClassico(j), palpitei: !!j.palpites?.[currentUser.username]})));
+  const json = JSON.stringify(montarLembretes(jogos, agora));
+  if (json === ultimosLembretes) return;
+  ultimosLembretes = json;
+  try { window.BolaoApp.agendar(json); } catch (e) { console.warn('lembretes:', e); }
 }
 
 let evolucaoChart = null;
