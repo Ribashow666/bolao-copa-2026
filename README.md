@@ -35,6 +35,12 @@ Multiplicadores: 16 avos ×1,25 · oitavas ×1,5 · quartas ×2 · semi e 3º lu
 - **Banco:** Firebase Realtime Database. Quem pode fazer o quê está em [`database.rules.json`](database.rules.json); detalhes em [SEGURANCA.md](SEGURANCA.md).
 - **Login:** Firebase Authentication, pelo apelido. Conta nova precisa da aprovação de um admin.
 
+## Pastas
+
+- `js/`, `styles/`, `index.html` — o site
+- `robo/` — robô que roda no GitHub Actions a cada 5 min (chamado pelo cron-job.org): placar da ESPN + notificações push. Precisa do segredo `FIREBASE_SERVICE_ACCOUNT` no GitHub.
+- `android/` — app Android (ver [android/README.md](android/README.md))
+
 ## Desenvolvimento
 
 ```bash

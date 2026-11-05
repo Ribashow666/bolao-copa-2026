@@ -1,0 +1,11 @@
+# Nunca subir: chave de assinatura (quem tiver publica um app falso por cima do nosso) e config do Firebase
+bolao-release.jks
+keystore-senha.txt
+google-services.json
+# Da máquina / gerados
+local.properties
+.gradle/
+build/
+*.apk
+*.aab
+*.idsig

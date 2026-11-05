@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cores do site: abre já no verde, sem piscar branco -->
+    <style name="App" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#06200E</item>
+        <item name="android:statusBarColor">#0D3318</item>
+        <item name="android:navigationBarColor">#06200E</item>
+    </style>
+</resources>
