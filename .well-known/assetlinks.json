@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "br.com.bolaomuitapaz.twa",
+        "sha256_cert_fingerprints": ["DD:12:52:90:9A:67:D1:86:12:A5:77:CD:8D:A3:11:70:69:58:FA:1D:C3:CA:A9:42:96:4E:18:72:1F:96:F0:AB"]
+      }
+    }]
