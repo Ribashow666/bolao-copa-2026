@@ -272,6 +272,9 @@ window.doRegister = async () => {
 };
 window.doLogout = async () => {
   try { localStorage.removeItem('bolao_session'); } catch {}
+  // Saiu da conta: este celular para de receber as notificações dela
+  const t = window.BolaoApp?.tokenPush?.();
+  if (t && auth.currentUser) await set(ref(db, `pushTokens/${auth.currentUser.uid}/${t}`), null).catch(() => {});
   await signOut(auth);
   location.reload(); // derruba todos os ouvintes do banco de uma vez
 };
@@ -521,6 +524,16 @@ function render() {
   else if (currentTab === 'eleicoes')  { el.innerHTML = elx.renderEleicoes(); }
   atualizarBadgeChat();
   agendarLembretes();
+  registrarPush();
+}
+
+// App com notificações push: guarda o endereço deste celular na conta, pro robô (robo/) saber pra onde mandar
+let tokenSalvo = '';
+function registrarPush() {
+  const t = window.BolaoApp?.tokenPush?.();
+  if (!t || t === tokenSalvo || !currentUser) return;
+  tokenSalvo = t;
+  set(ref(db, `pushTokens/${currentUser.uid}/${t}`), serverTimestamp()).catch(e => { tokenSalvo = ''; console.warn('push:', e.message); });
 }
 
 // Dentro do app Android existe window.BolaoApp: ele agenda as notificações no celular. No navegador não faz nada.

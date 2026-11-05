@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Robô do bolão (GitHub Actions)",
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

@@ -195,6 +195,13 @@
       }
     },
 
+    "pushTokens": {
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        "$token": { ".validate": "newData.isNumber() && $token.length <= 300" }
+      }
+    },
+
     "chatUltimo": {
       "$uid": {
         ".write": "auth != null && auth.uid === $uid",
